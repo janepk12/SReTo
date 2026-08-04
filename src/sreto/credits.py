@@ -41,10 +41,10 @@ def show(app):
     tk.Label(inner, text=branding.APP_TAGLINE, background=theme.PANEL,
              foreground=theme.MUTED,
              font=theme.F.ui).pack(anchor="w")
-    tk.Label(inner, text=f"{branding.author()} · {branding.institution()}",
+    byline = " · ".join(filter(None, (branding.author(), branding.institution())))
+    tk.Label(inner, text=byline,
              background=theme.PANEL, foreground=theme.C1,
-             font=theme.F.ui_bold).pack(anchor="w",
-                                                                    pady=(10, 0))
+             font=theme.F.ui_bold).pack(anchor="w", pady=(10, 0))
 
     scroll = widgets.ScrollFrame(win)
     scroll.pack(fill="both", expand=True, padx=18, pady=14)
@@ -92,8 +92,8 @@ def _runtime_rows():
 
 def _assets_note():
     where = branding.USER_ASSETS_DIR
-    logo = ("gfz_logo.png present" if branding.logo_path()
-            else f"drop gfz_logo.png into {where} to replace the placeholder")
+    logo = ("institution_logo.png present" if branding.logo_path()
+            else f"drop institution_logo.png into {where} to replace the placeholder")
     icon = ("app_icon.png present" if branding.app_icon_path()
             else f"drop app_icon.png into {where} for the desktop shortcut")
     return f"{logo}\n{icon}"

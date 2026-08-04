@@ -17,16 +17,23 @@ Values can be overridden without touching code by dropping a JSON file at
 ``<state dir>/assets/branding.json``, e.g.
 
     {
-      "author": "Luke Pugin",
+      "author": "A. Researcher",
       "role": "GNSS-R researcher",
-      "institution": "GFZ Helmholtz Centre for Geosciences",
+      "institution": "Example Institute",
       "extra_credits": [["Field support", "…"]]
     }
 
-The GFZ logo is NOT bundled — this module only points at a slot. Drop the
-official asset in either assets directory as ``gfz_logo.png`` and it is picked
-up automatically; until then a plain typographic placeholder is drawn, because
-inventing an institution's mark is not something a build script should do.
+That file is per-machine and gitignored (``src/sreto/assets/*.json`` is a
+user-supplied slot, never committed) — it is the one place a real name,
+institution or physical location belongs. The defaults baked into this module
+are shipped in the public source, so they stay generic and fall back to
+``git config user.name`` rather than naming anyone.
+
+No institution logo is bundled — this module only points at a slot. Drop the
+real asset in either assets directory as ``institution_logo.png`` and it is
+picked up automatically; until then a plain typographic placeholder is drawn,
+because inventing an institution's mark is not something a build script
+should do.
 """
 
 import json
@@ -55,7 +62,7 @@ def asset_path(name):
 
 
 BRANDING_JSON = os.path.join(USER_ASSETS_DIR, "branding.json")
-LOGO_PNG = asset_path("gfz_logo.png")
+LOGO_PNG = asset_path("institution_logo.png")
 APP_ICON_PNG = asset_path("app_icon.png")
 
 # The lock screen's backdrop photograph. Any of these names is picked up, in
@@ -79,12 +86,12 @@ def _git_user_name():
 
 
 _DEFAULTS = {
-    "author": "Luke Joshua Pugin",                    # filled from git config when empty
-    "contact": "lukepugin@gmail.com",
-    "role": "Student Research Assistant",
-    "institution": "GFZ Helmholtz Centre for Geosciences",
-    "department": "Section 1.1.: Space Geodetic Techniques",
-    "location": "Telegrafenberg, Potsdam",
+    "author": "",                       # empty => falls back to git config user.name
+    "contact": "",                      # drop a real address into branding.json, not here
+    "role": "Researcher",
+    "institution": "",
+    "department": "",
+    "location": "",
     "extra_credits": [],
 }
 
@@ -118,8 +125,8 @@ def institution():
 
 
 def logo_path():
-    """The GFZ logo, or None when the slot has not been filled."""
-    path = asset_path("gfz_logo.png")
+    """The institution logo, or None when the slot has not been filled."""
+    path = asset_path("institution_logo.png")
     return path if os.path.isfile(path) else None
 
 
@@ -138,16 +145,26 @@ def loading_image_path():
 
 
 def credit_rows():
-    """[(heading, text)] — the body of the credits dialog."""
+    """[(heading, text)] — the body of the credits dialog.
+
+    Identity fields (institution, department, contact, receiver site) are
+    blank by default and simply omitted rather than shown as an empty row —
+    they only appear once a real value is dropped into branding.json.
+    """
     from . import __version__
 
-    rows = [
-        ("Author", f"{INFO['author']} — {INFO['role']}"),
+    identity = [
+        ("Author", f"{INFO['author']} — {INFO['role']}"
+                    if INFO["role"] else INFO["author"]),
         ("Institution", INFO["institution"]),
         ("Department", INFO["department"]),
         ("Contact", INFO["contact"]),
         ("Receiver site", INFO["location"]),
-        ("", ""),
+    ]
+    rows = [(h, t) for h, t in identity if t]
+    if rows:
+        rows.append(("", ""))
+    rows += [
         ("Application", f"{APP_NAME} — {APP_LONG_NAME} v{__version__}"),
         ("Purpose",
          "Front-end for the bistatic reflectometry pipeline in the science "

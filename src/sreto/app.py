@@ -207,7 +207,9 @@ class App:
 
         # Small, permanent, and out of the way — the lock screen's credits are
         # gone once you unlock, and this is where they live afterwards.
-        about = tk.Label(bar, text=f"ⓘ {branding.author()} · GFZ",
+        about_text = "ⓘ " + " · ".join(
+            filter(None, (branding.author(), branding.institution())))
+        about = tk.Label(bar, text=about_text,
                          background=theme.SURFACE, foreground=theme.MUTED,
                          cursor="hand2",
                          font=theme.F.small)

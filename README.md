@@ -726,8 +726,8 @@ will simply tell you.
 
 ## License
 
-[MIT](LICENSE) © Luke Pugin
+[MIT](LICENSE) © janepk12
 
-The GFZ mark is **not** bundled — `src/sreto/assets/README.md` documents the
-slot to drop it into. Inventing or redistributing an institution's logo is not
-something a build script should do.
+Institution branding is **not** bundled — `src/sreto/assets/README.md`
+documents the slot to drop your own institution's logo into. Inventing or
+redistributing an institution's mark is not something a build script should do.

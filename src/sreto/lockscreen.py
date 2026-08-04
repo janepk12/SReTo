@@ -263,15 +263,18 @@ class LockScreen:
         tk.Label(pad, text=branding.author(), background=theme.PANEL,
                  foreground=theme.C1,
                  font=theme.F.title).pack()
-        tk.Label(pad, text=branding.INFO["role"], background=theme.PANEL,
-                 foreground=theme.MUTED,
-                 font=theme.F.small).pack()
-        tk.Label(pad, text=branding.institution(), background=theme.PANEL,
-                 foreground=theme.TEXT,
-                 font=theme.F.ui).pack(pady=(10, 0))
-        tk.Label(pad, text=branding.INFO["location"], background=theme.PANEL,
-                 foreground=theme.MUTED,
-                 font=theme.F.small).pack()
+        if branding.INFO["role"]:
+            tk.Label(pad, text=branding.INFO["role"], background=theme.PANEL,
+                     foreground=theme.MUTED,
+                     font=theme.F.small).pack()
+        if branding.institution():
+            tk.Label(pad, text=branding.institution(), background=theme.PANEL,
+                     foreground=theme.TEXT,
+                     font=theme.F.ui).pack(pady=(10, 0))
+        if branding.INFO["location"]:
+            tk.Label(pad, text=branding.INFO["location"], background=theme.PANEL,
+                     foreground=theme.MUTED,
+                     font=theme.F.small).pack()
 
         tk.Frame(pad, background=theme.BORDER, height=1).pack(fill="x", pady=20)
 
@@ -309,19 +312,24 @@ class LockScreen:
         credits.bind("<Button-1>", lambda _e: self.app.show_credits())
 
     def _draw_logo_placeholder(self, parent):
-        """Typographic stand-in until the official asset is dropped in.
+        """Typographic stand-in until an institution's own asset is dropped in.
 
-        Deliberately plain: this does not imitate GFZ's mark. Put the real file
-        at the package assets dir as gfz_logo.png and it replaces this automatically.
+        Deliberately plain: this does not imitate any real institution's mark.
+        Reads whatever `branding.institution()` resolves to (blank by default,
+        set via branding.json), so the placeholder never names an institution
+        nobody configured. Put the real logo file at the package assets dir as
+        institution_logo.png and it replaces this automatically.
         """
+        institution = branding.institution()
         holder = tk.Frame(parent, background=theme.PANEL)
         holder.pack(pady=(0, 16))
-        tk.Label(holder, text="GFZ", background=theme.PANEL,
+        tk.Label(holder, text=branding.APP_NAME, background=theme.PANEL,
                  foreground=theme.C1,
                  font=theme.F.lock_logo).pack()
-        tk.Label(holder, text="Helmholtz Centre for Geosciences",
-                 background=theme.PANEL, foreground=theme.MUTED,
-                 font=theme.F.small).pack()
+        if institution:
+            tk.Label(holder, text=institution,
+                     background=theme.PANEL, foreground=theme.MUTED,
+                     font=theme.F.small).pack()
 
     # ── keys ──────────────────────────────────────────────────────────────
     def _bind_keys(self):

@@ -11,18 +11,19 @@ Assets are searched in **two** directories, user first:
 
 | File | Used by | If missing |
 |---|---|---|
-| `gfz_logo.png` | lock screen | a plain typographic placeholder is drawn |
+| `institution_logo.png` | lock screen | a plain typographic placeholder is drawn |
 | `app_icon.png` | desktop shortcut | a default icon is generated from the palette |
 | `loading_screen.png` | lock screen backdrop | the blur uses the layout likeness alone |
-| `branding.json` | lock screen, credits | author is read from `git config user.name` |
+| `branding.json` | lock screen, credits | author is read from `git config user.name`; institution/department/location stay blank |
 
-## gfz_logo.png
+## institution_logo.png
 
-The official GFZ mark is **not** bundled — an institution's logo is not
+Named for the institution this project was originally built at; the file is
+**not** bundled regardless of which institution you use it for — a logo is not
 something a build script should invent, or that this project should
-redistribute. Save the real asset here (PNG, ideally with transparency, at
-least 600 px wide) and the lock screen picks it up on the next launch. It is
-scaled to fit 300×96.
+redistribute. Save your own institution's mark here (PNG, ideally with
+transparency, at least 600 px wide) and the lock screen picks it up on the next
+launch. It is scaled to fit 300×96.
 
 ## app_icon.png
 
@@ -44,15 +45,20 @@ higher-resolution file is a file copy — nothing to configure.
 
 ## branding.json
 
-Overrides `sreto/branding.py` without touching code:
+Overrides `sreto/branding.py` without touching code. This file lives in the
+**user** assets directory, not the package, so it is per-machine and never
+committed — it is the right place for a real name, institution or physical
+location. The shipped defaults are blank/generic on purpose (author falls
+back to `git config user.name`; institution, department and location stay
+empty and are simply omitted from the credits dialog until set here):
 
 ```json
 {
-  "author": "Luke Pugin",
-  "role": "Student Research Assistant",
-  "institution": "GFZ Helmholtz Centre for Geosciences",
-  "department": "Section 1.1.: Space Geodetic Techniques",
-  "location": "Telegrafenberg, Potsdam",
+  "author": "A. Researcher",
+  "role": "Research Assistant",
+  "institution": "Example Institute",
+  "department": "Example Department",
+  "location": "City, Country",
   "extra_credits": [
     ["Supervision", "..."],
     ["Field support", "..."]

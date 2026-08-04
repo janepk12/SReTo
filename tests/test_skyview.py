@@ -224,7 +224,7 @@ class TestBranding(unittest.TestCase):
             self.assertIsInstance(row[1], str)
 
     def test_logo_slot_is_optional(self):
-        """No bundled GFZ mark — the placeholder path must be exercisable."""
+        """No bundled institution mark — the placeholder path must be exercisable."""
         self.assertIn(branding.logo_path(), (None, branding.LOGO_PNG))
 
     def test_assets_live_inside_the_gui_package(self):

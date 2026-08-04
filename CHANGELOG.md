@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security / Privacy
+
+- **No real name, email or institution ships in the source anymore.** The
+  `branding.py` defaults (`author`, `contact`, `institution`, `department`,
+  `location`) were hardcoded to the original author's identity and workplace;
+  they are now blank, and `author` falls back to `git config user.name`. Real
+  values belong in `<state dir>/assets/branding.json`, which was already
+  gitignored per-machine state and is unaffected.
+- **The lock screen no longer hardcodes an institution name.** It previously
+  drew "GFZ" / "Helmholtz Centre for Geosciences" as literal text regardless of
+  configuration; it now shows `branding.institution()` (blank by default) and
+  omits the line entirely when unset.
+- `credit_rows()` omits identity rows (institution, department, contact,
+  receiver site) instead of showing them blank.
+- The `gfz_logo.png` asset slot is renamed `institution_logo.png` — a generic
+  name for a slot any installation can use, documented in
+  `src/sreto/assets/README.md`.
+- `pyproject.toml` authorship, `LICENSE` and the README's license line now
+  read `janepk12`, matching the account this project is published from.
+
 ### Added
 
 - **`sreto.radios`** — the SDR support catalogue as data: which radios are
