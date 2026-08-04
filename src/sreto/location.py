@@ -345,6 +345,53 @@ def _auth_status(manager, CLLocationManager):
         return None
 
 
+def _coord_lat_lon(coord):
+    """(lat, lon) from a CLLocationCoordinate2D, however pyobjc bridged it.
+
+    THE BUG THIS EXISTS FOR
+    -----------------------
+    ``CLLocationCoordinate2D`` is a C struct, and pyobjc bridges C structs only
+    when it has METADATA for them — which arrives with the real framework
+    bindings (``pyobjc-framework-CoreLocation``). This module deliberately does
+    not require those: it loads the framework by path with ``objc.loadBundle``
+    so that a machine carrying only ``pyobjc-core`` still works (see the module
+    docstring). Without the metadata there is nothing to build a struct wrapper
+    from, so the same call returns a plain ``(latitude, longitude)`` tuple.
+
+    Reading ``.latitude`` off that raised
+
+        CoreLocation failed: 'tuple' object has no attribute 'latitude'
+
+    which was reported to the user as a FAILED fix — while CoreLocation had in
+    fact just succeeded and handed over real coordinates. The fix had worked;
+    only the unpacking was wrong.
+
+    Both shapes are accepted rather than picking one, because which one you get
+    depends on the user's installed packages, not on anything this code can
+    determine in advance. Raises TypeError on anything else, so a third
+    bridging shape surfaces as itself instead of as a wrong coordinate.
+    """
+    # Attribute style first: with the bindings installed this is the real
+    # struct wrapper. `is not None` rather than truthiness — latitude 0.0 is a
+    # valid coordinate on the equator, and `if lat:` would reject it.
+    lat = getattr(coord, "latitude", None)
+    lon = getattr(coord, "longitude", None)
+    if lat is not None and lon is not None:
+        return float(lat), float(lon)
+
+    # Tuple style: objc.loadBundle without struct metadata. Ordering is
+    # (latitude, longitude), matching the struct's field order in
+    # CLLocation.h — the reverse would silently put Berlin in Somalia.
+    try:
+        lat, lon = coord[0], coord[1]
+    except (TypeError, IndexError, KeyError) as e:
+        raise TypeError(
+            f"CLLocationCoordinate2D bridged as {type(coord).__name__}, which "
+            f"is neither an object with .latitude/.longitude nor a (lat, lon) "
+            f"sequence") from e
+    return float(lat), float(lon)
+
+
 def _denied_message():
     return ("location access was denied for this app — turn it back on under "
             "System Settings > Privacy & Security > Location Services")
@@ -450,11 +497,11 @@ def laptop_fix(timeout_s=8.0, auth_timeout_s=45.0):
             pump(0.25)
             location = manager.location()
             if location is not None:
-                coord = location.coordinate()
+                lat, lon = _coord_lat_lon(location.coordinate())
                 # (0, 0) is CoreLocation's "no fix yet", not the Gulf of Guinea.
-                if coord.latitude or coord.longitude:
+                if lat or lon:
                     return Fix(
-                        coord.latitude, coord.longitude,
+                        lat, lon,
                         location.altitude(), "laptop", time.time(),
                         accuracy_m=location.horizontalAccuracy()), ""
             # Only DENIED is worth giving up on. LOCATION_UNKNOWN arrives once

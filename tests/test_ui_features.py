@@ -437,5 +437,60 @@ class TestLocationFix(unittest.TestCase):
                              "geometry.json")), reason)
 
 
+class TestCoordinateBridging(unittest.TestCase):
+    """pyobjc hands CLLocationCoordinate2D over in one of two shapes.
+
+    THE BUG: with only pyobjc-core installed, objc.loadBundle has no struct
+    metadata and the coordinate arrives as a plain (lat, lon) tuple. Reading
+    .latitude off it raised "'tuple' object has no attribute 'latitude'", and
+    the app reported a FAILED fix — while CoreLocation had actually just
+    succeeded. Needs no Mac and no CoreLocation to test, which is the point:
+    the bug only appeared on a machine nobody was running the suite on.
+    """
+
+    class _Struct:
+        """What pyobjc returns WITH the framework bindings installed."""
+
+        def __init__(self, latitude, longitude):
+            self.latitude = latitude
+            self.longitude = longitude
+
+    def test_struct_style_is_read(self):
+        lat, lon = location._coord_lat_lon(self._Struct(52.379222, 13.066138))
+        self.assertAlmostEqual(lat, 52.379222)
+        self.assertAlmostEqual(lon, 13.066138)
+
+    def test_tuple_style_is_read(self):
+        """The shape that actually broke."""
+        lat, lon = location._coord_lat_lon((52.379222, 13.066138))
+        self.assertAlmostEqual(lat, 52.379222)
+        self.assertAlmostEqual(lon, 13.066138)
+
+    def test_both_shapes_agree(self):
+        """Order matters: (lat, lon) reversed puts Berlin in Somalia."""
+        self.assertEqual(location._coord_lat_lon((52.379222, 13.066138)),
+                         location._coord_lat_lon(
+                             self._Struct(52.379222, 13.066138)))
+
+    def test_a_zero_latitude_is_a_coordinate_not_a_missing_one(self):
+        """Guards a truthiness bug in the reader: 0.0 is the equator, and
+        `if lat:` would reject a valid fix off the coast of Africa."""
+        self.assertEqual(location._coord_lat_lon((0.0, 13.066138)),
+                         (0.0, 13.066138))
+        self.assertEqual(location._coord_lat_lon(self._Struct(0.0, 0.0)),
+                         (0.0, 0.0))
+
+    def test_lists_work_too(self):
+        self.assertEqual(location._coord_lat_lon([1.5, 2.5]), (1.5, 2.5))
+
+    def test_an_unrecognised_shape_raises_rather_than_guessing(self):
+        """A third bridging shape must surface as itself. Returning (0, 0) or
+        silently picking a field would report a wrong position as a real one."""
+        with self.assertRaises(TypeError):
+            location._coord_lat_lon(object())
+        with self.assertRaises(TypeError):
+            location._coord_lat_lon(None)
+
+
 if __name__ == "__main__":
     unittest.main()
