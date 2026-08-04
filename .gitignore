@@ -90,3 +90,13 @@ Icon?
 # ── Assistant / agent scratch ─────────────────────────────────────────────
 .claude/
 CLAUDE.md
+
+# ── Credentials (never, under any circumstances) ──────────────────────────
+github.txt
+*.token
+*token.txt
+.env
+.env.*
+*.pem
+*.key
+.netrc
