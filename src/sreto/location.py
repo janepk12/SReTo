@@ -259,7 +259,38 @@ AUTH_ALWAYS = 3
 AUTH_WHEN_IN_USE = 4
 AUTH_GRANTED = (AUTH_ALWAYS, AUTH_WHEN_IN_USE)
 
+# CLError, from CLError.h. Code 0 is TRANSIENT — Apple's own guidance is to
+# keep waiting rather than treat it as failure, and CoreLocation repeats it
+# every second or so while it is still trying.
+CL_ERROR_LOCATION_UNKNOWN = 0
+CL_ERROR_DENIED = 1
+CL_ERROR_NETWORK = 2
+
 _DELEGATE_CLASS = None
+
+
+def wifi_powered():
+    """Is the Wi-Fi radio on? True / False / None if it cannot be determined.
+
+    This matters more than it looks. A Mac HAS NO GPS — no Mac ever shipped
+    with a GNSS receiver. CoreLocation positions it by scanning nearby Wi-Fi
+    base stations and asking Apple's location service where that pattern of
+    BSSIDs is. With the radio off there is nothing to scan, so a fix is
+    impossible no matter what permissions say — and the only symptom is a
+    repeated kCLErrorLocationUnknown, which names none of this. Ethernet does
+    not substitute: it carries the query to Apple but supplies no BSSIDs to
+    ask about.
+    """
+    try:
+        import objc
+        bundle = {}
+        objc.loadBundle("CoreWLAN", bundle,
+                        bundle_path="/System/Library/Frameworks/CoreWLAN.framework")
+        client = bundle["CWWiFiClient"].sharedWiFiClient()
+        interface = client.interface()
+        return bool(interface.powerOn()) if interface is not None else None
+    except Exception:                                      # noqa: BLE001
+        return None
 
 
 def _delegate_class():
@@ -284,6 +315,10 @@ def _delegate_class():
 
             def locationManager_didFailWithError_(self, manager, error):
                 self.failure = str(error)
+                try:
+                    self.failure_code = int(error.code())
+                except Exception:                          # noqa: BLE001
+                    self.failure_code = None
 
             def locationManagerDidChangeAuthorization_(self, manager):
                 # Also empty: laptop_fix() polls authorizationStatus() in the
@@ -308,6 +343,27 @@ def _auth_status(manager, CLLocationManager):
         return int(CLLocationManager.authorizationStatus())
     except Exception:                                      # noqa: BLE001
         return None
+
+
+def _denied_message():
+    return ("location access was denied for this app — turn it back on under "
+            "System Settings > Privacy & Security > Location Services")
+
+
+def _no_fix_message(timeout_s):
+    """Say WHY nothing arrived, not just that nothing arrived.
+
+    Wi-Fi off is by far the most common cause on a desk machine and produces
+    no distinguishing error of its own, so it is checked explicitly rather
+    than left for the user to guess at from 'no fix'.
+    """
+    if wifi_powered() is False:
+        return ("Wi-Fi is switched off, and a Mac has no GPS — it works out "
+                "where it is by scanning nearby Wi-Fi networks. Turn Wi-Fi on "
+                "(you do not have to join a network; Ethernet alone is not "
+                "enough) and try again")
+    return (f"no fix within {timeout_s:.0f} s — a machine indoors can take "
+            f"longer to place itself, so try again")
 
 
 def laptop_fix(timeout_s=8.0, auth_timeout_s=45.0):
@@ -349,9 +405,17 @@ def laptop_fix(timeout_s=8.0, auth_timeout_s=45.0):
                           "machine — System Settings > Privacy & Security > "
                           "Location Services")
 
+        # Checked BEFORE asking for permission, not after timing out: with the
+        # radio off there is no positioning path at all on a Mac, so the only
+        # outcomes are a 45 s wait on a permission prompt the user cannot make
+        # use of, followed by a bare 'no fix'. Say the actual reason at once.
+        if wifi_powered() is False:
+            return None, _no_fix_message(timeout_s)
+
         manager = CLLocationManager.alloc().init()
         delegate = _delegate_class().alloc().init()
         delegate.failure = None
+        delegate.failure_code = None
         manager.setDelegate_(delegate)
 
         loop = NSRunLoop.currentRunLoop()
@@ -374,9 +438,7 @@ def laptop_fix(timeout_s=8.0, auth_timeout_s=45.0):
                               "click Allow")
 
         if status == AUTH_DENIED:
-            return None, ("location access was denied for this app — turn it "
-                          "back on under System Settings > Privacy & Security "
-                          "> Location Services > SDR Reflectometry")
+            return None, _denied_message()
         if status == AUTH_RESTRICTED:
             return None, ("location access is restricted on this machine "
                           "(parental controls or an MDM profile)")
@@ -395,11 +457,14 @@ def laptop_fix(timeout_s=8.0, auth_timeout_s=45.0):
                         coord.latitude, coord.longitude,
                         location.altitude(), "laptop", time.time(),
                         accuracy_m=location.horizontalAccuracy()), ""
-            if delegate.failure:
-                return None, f"CoreLocation error: {delegate.failure}"
-        return None, (f"permission is granted but no fix arrived within "
-                      f"{timeout_s:.0f} s — a laptop indoors can take longer, "
-                      f"so try again")
+            # Only DENIED is worth giving up on. LOCATION_UNKNOWN arrives once
+            # a second for the whole time CoreLocation is still searching, so
+            # returning on it — as this used to — turned "still working on it"
+            # into an instant, permanent-looking failure.
+            if delegate.failure_code == CL_ERROR_DENIED:
+                return None, _denied_message()
+            delegate.failure = None
+        return None, _no_fix_message(timeout_s)
     except Exception as e:                                 # noqa: BLE001
         return None, f"CoreLocation failed: {e}"
     finally:

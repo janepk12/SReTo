@@ -9,7 +9,7 @@ description = "SDR Reflectometry Toolkit — plan, capture and analyse bistatic 
 readme = "README.md"
 requires-python = ">=3.9"
 license = { file = "LICENSE" }
-authors = [{ name = "janepk12", email = "177402930+janepk12@users.noreply.github.com" }]
+authors = [{ name = "Luke Pugin", email = "177402930+janepk12@users.noreply.github.com" }]
 keywords = [
     "gnss-r", "soop-r", "reflectometry", "sdr", "bladerf",
     "soil-moisture", "remote-sensing", "altimetry",

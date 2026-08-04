@@ -726,7 +726,7 @@ will simply tell you.
 
 ## License
 
-[MIT](LICENSE) © janepk12
+[MIT](LICENSE) © Luke Pugin
 
 Institution branding is **not** bundled — `src/sreto/assets/README.md`
 documents the slot to drop your own institution's logo into. Inventing or
