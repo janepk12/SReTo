@@ -1,0 +1,100 @@
+name: Bug report
+description: Something in SReTo behaves differently from what it says it does
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Two things make a SReTo bug fixable almost every
+        time: the output of `sreto --where` and the output of `sreto --check`.
+        Please paste both.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+      placeholder: |
+        1. Opened the Capture tab
+        2. Set bandwidth to 5 MHz and pressed Start
+        3. Expected … but the console showed …
+    validations:
+      required: true
+
+  - type: textarea
+    id: where
+    attributes:
+      label: "`sreto --where`"
+      description: The resolved repo, state and config paths. Redact anything private.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: check
+    attributes:
+      label: "`sreto --check`"
+      description: The headless validation suite. No window is opened and the radio is not touched.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: SReTo version
+      description: Output of `sreto --version`, or the commit SHA for a source checkout.
+      placeholder: "sreto 0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version and how SReTo was installed
+      placeholder: "3.12.4, pip install -e '.[dev,images]' in a venv"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: repo
+    attributes:
+      label: Is a science repository configured?
+      description: Most of SReTo works without one; some panels cannot.
+      options:
+        - "Yes"
+        - "No"
+        - "Not sure — see `sreto --where` above"
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console output or saved run log
+      description: >-
+        SReTo saves every run's console to `<state>/logs/`. The tail is usually
+        enough. `sreto --where` prints where that is.
+      render: text
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked that this is not a missing science repository (the app says so explicitly when it is).
+          required: true
+        - label: I have not pasted any captured data, credentials or private coordinates.
+          required: true

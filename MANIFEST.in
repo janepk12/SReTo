@@ -1,0 +1,26 @@
+# What goes into the sdist beyond the package itself.
+#
+# The wheel is covered by [tool.setuptools.package-data] in pyproject.toml
+# (src/sreto/assets/*). This file is about the source distribution: someone who
+# downloads the .tar.gz should be able to run the suite and build the desktop
+# launcher, which means the tests and scripts have to travel with it.
+
+include LICENSE
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include CODE_OF_CONDUCT.md
+include SECURITY.md
+include pyproject.toml
+
+recursive-include src/sreto/assets *
+recursive-include tests *.py
+recursive-include scripts *.sh
+
+# Never ship caches, state or captured data.
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store
+global-exclude *.bin
+prune .github
+prune .ruff_cache

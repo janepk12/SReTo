@@ -1,0 +1,38 @@
+# pip install pre-commit && pre-commit install
+#
+# Mirrors the CI lint job, so a push that passes here passes there. `ruff
+# format` is deliberately NOT enabled: the codebase is not yet formatted and
+# turning it on would produce one enormous diff that buries real history.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        # IQ captures are gigabytes. Nothing that size belongs in this repo.
+        args: ["--maxkb=512"]
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: '^(src|tests)/'
+
+  - repo: local
+    hooks:
+      - id: no-science-data
+        name: no captured data or logs staged
+        entry: >-
+          bash -c 'echo "refusing to commit captured data / master logs: $@" && exit 1' --
+        language: system
+        files: '(\.bin|\.sigmf-data|master_experiment_log\..*|master_failures\.csv|latest_capture_plan\.tsv)$'

@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a capability SReTo does not have yet
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: the README's **Supported radios** and **Roadmap to
+        standalone** sections list what is already planned and in what order.
+        If your request is one of those, a comment on the existing issue is
+        more useful than a new one.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that SReTo makes hard or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like it to do
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Capture (capture.sh wrapper)
+        - Automation (soop_capture.sh wrapper)
+        - Analysis (MAIN.py wrapper)
+        - Availability / sky view / skymap
+        - History
+        - Pre-checks
+        - New SDR / radio backend
+        - Packaging, install or CLI
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware involved
+      description: >-
+        For a new radio backend, name the device and the host tool that drives
+        it (e.g. "HackRF One, `hackrf_transfer`"). Say whether it can sample two
+        channels from one clock — SReTo's measurement needs a coherent pair.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

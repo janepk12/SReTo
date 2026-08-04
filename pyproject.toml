@@ -1,0 +1,136 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sreto"
+version = "0.1.0"
+description = "SDR Reflectometry Toolkit — plan, capture and analyse bistatic GNSS-R / SoOp-R observations"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Luke Pugin", email = "lukepugin@gmail.com" }]
+keywords = [
+    "gnss-r", "soop-r", "reflectometry", "sdr", "bladerf",
+    "soil-moisture", "remote-sensing", "altimetry",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications",
+    "Environment :: MacOS X",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: GIS",
+]
+
+# ── Runtime dependencies ───────────────────────────────────────────────────
+# Derived by scanning every import in the package, NOT by copying the science
+# environment's list. The result is deliberately short:
+#
+#   * tkinter, zoneinfo, pty, termios, fcntl, csv, json, ast … are stdlib.
+#     tkinter cannot be pip-installed and is therefore documented, not listed
+#     (see README > Requirements).
+#   * numpy / scipy / matplotlib / skyfield are NOT imported by this package.
+#     They belong to the science repository's own environment, which runs the
+#     analysis in a subprocess. prechecks.py only checks that they are
+#     importable; _lazy_orbits.py imports the repo's orbits.py, which pulls
+#     them in over there. Listing them here would install a second, unused copy.
+#   * Pillow is genuinely optional: without it the lock screen degrades to a
+#     plain scrim and `sreto.make_icon` refuses to run. Both paths are guarded
+#     with try/except ImportError, so it is an extra, not a hard requirement.
+dependencies = []
+
+[project.optional-dependencies]
+# The lock screen's blurred backdrop and the desktop-icon builder.
+images = ["Pillow>=9.0"]
+
+# macOS Location Services ("This laptop" coordinates). Imported inside a
+# try/except in location.py and only ever on darwin.
+macos = ["pyobjc-framework-CoreLocation>=9.0; sys_platform == 'darwin'"]
+
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.5",
+    "build>=1.0",
+]
+
+# Everything an interactive desktop install wants.
+all = [
+    "sreto[images]",
+    "sreto[macos]",
+]
+
+[project.scripts]
+sreto = "sreto.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/janepk12/SReTo"
+Repository = "https://github.com/janepk12/SReTo"
+Issues = "https://github.com/janepk12/SReTo/issues"
+Changelog = "https://github.com/janepk12/SReTo/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sreto = ["assets/*"]
+
+# ── Tests ──────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"
+markers = [
+    "science_repo: needs a configured science repository ($SRETO_REPO_ROOT)",
+    "display: needs a Tk display",
+]
+
+# ── Lint ───────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "C4",   # comprehensions
+]
+ignore = [
+    # The GUI uses broad excepts deliberately and says so at every site: a
+    # crashed callback must degrade to a console line, never take the window
+    # down mid-capture.
+    "B008",
+    # Tk callbacks legitimately shadow builtins in lambdas (`id`, `type`).
+    "A001", "A002",
+    # Long explanatory comments are the house style here and several are
+    # transcriptions of shell-script line references that must stay verbatim.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests reach into private helpers on purpose; several assert on module state.
+"tests/*" = ["E402", "F401"]
+# The package docstring lists modules; __init__ imports nothing by design.
+"src/sreto/__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sreto"]

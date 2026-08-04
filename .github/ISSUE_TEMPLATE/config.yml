@@ -1,0 +1,10 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question about running SReTo
+    url: https://github.com/janepk12/SReTo/discussions
+    about: >-
+      Install problems, tkinter, or "which parts work without a science
+      repository" — ask here rather than opening a bug.
+  - name: Security vulnerability
+    url: https://github.com/janepk12/SReTo/security/advisories/new
+    about: Report privately. Please do not open a public issue.

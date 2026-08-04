@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip ruff
+      - name: ruff check
+        run: ruff check src tests
+      - name: ruff format --diff
+        run: ruff format --diff src tests
+        continue-on-error: true    # advisory: the codebase is not yet formatted
+
+  test:
+    name: tests (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # tkinter is NOT pip-installable. macOS runners ship it with the
+      # python.org build; Linux needs the system package. Without this the
+      # import of sreto.app fails and a third of the suite would "skip" for
+      # the wrong reason.
+      - name: Install tkinter (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk xvfb
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,images]"
+
+      - name: Verify tkinter is importable
+        # An honest gate: if tkinter is missing the display-dependent tests
+        # would skip silently and the run would be green for no reason.
+        run: python -c "import tkinter; print(tkinter.TkVersion)"
+
+      # ── The suite runs WITHOUT a science repository. ──
+      # Roughly a third of the tests re-derive their expectations from the
+      # science repo's own shell scripts and skip when it is absent (see
+      # tests/__init__.py). That is reported, not hidden: -ra prints every
+      # skip with its reason, and the step below fails the build if the
+      # repo-independent tests ever stop running at all.
+      - name: Run tests (Linux, under xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python -m pytest -ra --junitxml=results.xml
+
+      - name: Run tests (macOS)
+        if: runner.os == 'macOS'
+        run: python -m pytest -ra --junitxml=results.xml
+
+      - name: Guard against a suite that only skips
+        shell: bash
+        run: |
+          python - <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          suite = ET.parse("results.xml").getroot()
+          if suite.tag == "testsuites":
+              suite = suite[0]
+          total = int(suite.get("tests", 0))
+          skipped = int(suite.get("skipped", 0))
+          ran = total - skipped
+          print(f"{ran} ran, {skipped} skipped, {total} collected")
+          # The repo-independent half of the suite must always execute. If a
+          # refactor makes everything skip, CI would go green on nothing.
+          if ran < 40:
+              sys.exit(f"only {ran} tests actually ran — expected at least 40")
+          PY
+
+      - name: Console entry point works
+        run: |
+          sreto --version
+          sreto --where || true      # exits 1 without a science repo, by design
+
+  build:
+    name: build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip build
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/

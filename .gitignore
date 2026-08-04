@@ -1,0 +1,92 @@
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Builds & distribution
+build/
+dist/
+sdist/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+MANIFEST
+
+# Environments
+.venv/
+.venv*/
+venv/
+env/
+ENV/
+.conda/
+pip-wheel-metadata/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ── SReTo runtime state ───────────────────────────────────────────────────
+# Never committed: run journals, console logs, cached location fixes, the
+# transpiled MAIN.py copies and the propagated sky-view cache. All machine- and
+# session-specific, and the journal names local absolute paths.
+.state/
+*.jsonl
+runs.jsonl
+presets.json
+skyview_cache.json
+location.json
+
+# Local configuration pointing at a science repository on THIS machine.
+config.json
+.sreto.json
+
+# ── Generated assets ──────────────────────────────────────────────────────
+# make_desktop_app.sh regenerates app_icon.png from make_icon.py (or from a
+# user-supplied photo), so the binary does not belong in git. The drop-in
+# slots documented in src/sreto/assets/README.md are user-supplied too.
+src/sreto/assets/app_icon.png
+src/sreto/assets/gfz_logo.png
+src/sreto/assets/loading_screen.*
+src/sreto/assets/branding.json
+
+# ── Science data (never in this repo) ─────────────────────────────────────
+# IQ captures are gigabytes each; the logs and figures belong to the science
+# repository. Listed defensively in case someone copies one in to test with.
+*.bin
+*.sigmf-data
+02_DATA/
+03_FIGURES/
+master_experiment_log.*
+master_failures.csv
+latest_capture_plan.tsv
+.tle_cache.json
+
+# ── macOS ─────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# ── Editors ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Assistant / agent scratch ─────────────────────────────────────────────
+.claude/
+CLAUDE.md
