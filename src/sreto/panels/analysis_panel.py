@@ -74,7 +74,8 @@ class AnalysisPanel(ttk.Frame):
         header = ttk.Frame(root)
         header.pack(fill="x", pady=(0, 4))
         ttk.Label(header, text="Analysis", style="Submenu.TLabel").pack(side="left")
-        ttk.Label(header, text=f"→ python {paths.rel(paths.MAIN_PY)} "
+        ttk.Label(header, text=f"{theme.glyph('arrow')} python "
+                               f"{paths.rel(paths.MAIN_PY)} "
                                f"(parameterised copy — MAIN.py is not modified)",
                   style="Muted.TLabel").pack(side="left", padx=(10, 0))
 
@@ -89,7 +90,8 @@ class AnalysisPanel(ttk.Frame):
                                           state="readonly", width=64)
         self.capture_combo.pack(side="left", fill="x", expand=True)
         self.capture_combo.bind("<<ComboboxSelected>>", self._on_capture_selected)
-        ttk.Button(row, text="Browse…", command=self._browse, width=10).pack(
+        ttk.Button(row, text=f"Browse{theme.glyph('ellipsis')}",
+                   command=self._browse, width=10).pack(
             side="left", padx=(8, 0))
         ttk.Button(row, text="Refresh", command=self.refresh_captures, width=9).pack(
             side="left", padx=(6, 0))

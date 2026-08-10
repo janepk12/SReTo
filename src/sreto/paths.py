@@ -1,7 +1,7 @@
 """
 paths.py — every filesystem location SReTo touches, resolved from this file.
 
-Nothing here is hardcoded to a user's home directory. There are two roots and
+Nothing here is hardcoded to a user's home directory. There are three roots and
 they are deliberately kept apart:
 
     REPO_ROOT   the SCIENCE repository, resolved by config.py. SReTo only ever
@@ -9,10 +9,18 @@ they are deliberately kept apart:
                 from it is still a string but points at nothing, and
                 ``config.is_configured()`` is False.
 
-    STATE_DIR   the only place SReTo writes: journal, presets, logs and the
-                transpiled MAIN.py copies. Outside both the science repo and
-                the installed package, so an installed wheel never writes into
-                site-packages and the science repo stays byte-identical.
+    OUTPUT_ROOT where captures and figures live. The SAME as REPO_ROOT when one
+                is configured — those are the pipeline's own 02_DATA and
+                03_FIGURES, and SReTo still only reads them. Without a repo it
+                is a tree SReTo owns and creates (config.output_root()), so a
+                fresh clone has somewhere to put output instead of naming a
+                placeholder directory nothing ever made.
+
+    STATE_DIR   the only place SReTo writes *unconditionally*: journal, presets,
+                logs and the transpiled MAIN.py copies. Outside both the science
+                repo and the installed package, so an installed wheel never
+                writes into site-packages and the science repo stays
+                byte-identical.
 
 The original in-tree version derived the repo root from ``__file__`` because
 the GUI lived inside the science repo. It no longer does, so the derivation
@@ -39,7 +47,7 @@ GUI_DIR = PACKAGE_DIR
 
 def _init():
     """(Re)derive every repo-relative constant from the configured root."""
-    global REPO_ROOT, CODE_DIR
+    global REPO_ROOT, CODE_DIR, OUTPUT_ROOT
     global CAPTURE_SH, SOOP_CAPTURE_SH, SOOP_PLANNER_PY, MAIN_PY, SATELLITES_PY
     global GEOMETRY_JSON, TLE_CACHE
     global DATA_DIR, FIGURES_DIR, ANALYSIS_DIR, SOOP_DIR, PLAN_TSV
@@ -64,8 +72,15 @@ def _init():
     TLE_CACHE = os.path.join(CODE_DIR, ".tle_cache.json")
 
     # ── data / output locations (mirror the constants inside the CLI tools) ─
-    DATA_DIR = os.path.join(REPO_ROOT, "02_DATA")            # capture.sh BASE_DIR
-    FIGURES_DIR = os.path.join(REPO_ROOT, "03_FIGURES")
+    # With a science repo these ARE the pipeline's own directories and SReTo
+    # only reads them. Without one they used to point into a "no-science-repo"
+    # placeholder that nothing ever created, so every output path named a
+    # directory that did not exist. They now fall back to a root SReTo owns and
+    # creates — see config.output_root() and ensure_output_dirs().
+    OUTPUT_ROOT = REPO_ROOT if config.is_configured() else config.output_root()
+
+    DATA_DIR = os.path.join(OUTPUT_ROOT, "02_DATA")          # capture.sh BASE_DIR
+    FIGURES_DIR = os.path.join(OUTPUT_ROOT, "03_FIGURES")
     ANALYSIS_DIR = os.path.join(FIGURES_DIR, "ANALYSIS PLOTS")   # MAIN.py SAVE_DIR
     SOOP_DIR = os.path.join(FIGURES_DIR, "SOOP_AVAILABILITY")    # soop_planner SAVE_DIR
     PLAN_TSV = os.path.join(SOOP_DIR, "latest_capture_plan.tsv")
@@ -96,6 +111,65 @@ def ensure_state_dirs():
     """Create SReTo's own directories. Never creates anything in the repo."""
     for d in (GUI_STATE_DIR, TMP_DIR, GUI_LOG_DIR):
         os.makedirs(d, exist_ok=True)
+
+
+OUTPUT_README = """\
+SReTo output
+============
+
+Captures and figures land here because no science repository is configured,
+so SReTo is using a tree of its own instead of the pipeline's 02_DATA and
+03_FIGURES. The layout deliberately mirrors the science repo, so pointing
+SReTo at a real one later (`sreto --set-repo /path/to/sdr_r`) changes only
+which root these names hang off.
+
+    02_DATA/                          IQ captures and the master logs
+    03_FIGURES/ANALYSIS PLOTS/        what MAIN.py writes
+    03_FIGURES/SOOP_AVAILABILITY/     pass plans and sky maps
+
+Created automatically, and ignored by git (the `output/` line in .gitignore)
+so multi-gigabyte captures can never be committed. Safe to delete: it is
+rebuilt on the next start. Override the location with $SRETO_OUTPUT_DIR.
+"""
+
+
+def output_dirs():
+    """The capture/figure directories, parents before children."""
+    return (OUTPUT_ROOT, DATA_DIR, FIGURES_DIR, ANALYSIS_DIR, SOOP_DIR)
+
+
+def ensure_output_dirs():
+    """Create the capture/figure tree, but only when SReTo owns it.
+
+    Returns the directories it had to create, so the console can say where the
+    output went the first time — a tree appearing silently next to the source
+    is worse than one that announces itself.
+
+    Does nothing when a science repository is configured: those directories
+    belong to the pipeline, capture.sh and MAIN.py create them on first write,
+    and SReTo creating anything inside that repo would break the promise the
+    whole of tests/test_nondestructive.py exists to enforce.
+    """
+    if have_science_repo():
+        return []
+
+    made = []
+    for d in output_dirs():
+        if not os.path.isdir(d):
+            try:
+                os.makedirs(d, exist_ok=True)
+                made.append(d)
+            except OSError:
+                return made   # unwritable parent — the pre-checks will say so
+
+    readme = os.path.join(OUTPUT_ROOT, "README.txt")
+    if made and not os.path.exists(readme):
+        try:
+            with open(readme, "w", encoding="utf-8") as f:
+                f.write(OUTPUT_README)
+        except OSError:
+            pass          # the directories are what matter; the note is a nicety
+    return made
 
 
 def have_science_repo():

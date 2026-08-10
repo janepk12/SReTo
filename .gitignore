@@ -59,6 +59,12 @@ src/sreto/assets/gfz_logo.png
 src/sreto/assets/loading_screen.*
 src/sreto/assets/branding.json
 
+# ── SReTo's own output tree ───────────────────────────────────────────────
+# Created on first start when no science repository is configured, so a fresh
+# clone has somewhere to put captures and figures (see config.output_root()).
+# Ignored wholesale: a single IQ capture is gigabytes, and none of it is code.
+output/
+
 # ── Science data (never in this repo) ─────────────────────────────────────
 # IQ captures are gigabytes each; the logs and figures belong to the science
 # repository. Listed defensively in case someone copies one in to test with.

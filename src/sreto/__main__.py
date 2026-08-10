@@ -55,6 +55,48 @@ def _print_summary():
         print(config.missing_repo_message())
 
 
+def _report_fonts():
+    """Which fonts the window would actually use, from a hidden throwaway root.
+
+    Worth a line in --check because a Tk without Xft produces a GUI that looks
+    broken while working perfectly, and no error is raised anywhere. Silent
+    when there is no display: --check is meant to be safe over SSH.
+
+    The root is withdrawn before anything is drawn, so no window flashes and
+    macOS gets no Dock icon. Any failure at all is caught, not just TclError:
+    "no display" reaches Python as TclError on X11 but as several different
+    things on macOS depending on how the process was launched, and a --check
+    that crashes while REPORTING on the install is worse than one that skips
+    a cosmetic line.
+    """
+    import tkinter as tk
+
+    from . import theme
+
+    root = None
+    try:
+        root = tk.Tk()
+        root.withdraw()
+        theme.probe_fonts(root)
+    except Exception:                                     # noqa: BLE001
+        print("fonts    : no display — cannot measure (this is fine headless)")
+        return
+    finally:
+        if root is not None:
+            try:
+                root.destroy()
+            except Exception:                             # noqa: BLE001
+                pass
+
+    for label, value in theme.rendering_summary():
+        print(f"{label:<9}: {value}")
+    if not theme.unicode_text:
+        import textwrap
+        print()
+        for line in textwrap.wrap(f"WARNING: {theme.XFT_HINT}", 76):
+            print(f"  {line}")
+
+
 def _self_check():
     """Import every module, report the environment, and run the suite if present.
 
@@ -91,6 +133,8 @@ def _self_check():
     except ImportError:
         print("tkinter  : MISSING — the GUI cannot open. See the README.")
         failed.append("  tkinter")
+    else:
+        _report_fonts()
 
     print()
     _print_summary()

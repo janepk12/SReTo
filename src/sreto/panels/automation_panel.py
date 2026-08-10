@@ -39,7 +39,9 @@ class AutomationPanel(ttk.Frame):
         header.pack(fill="x", pady=(0, 4))
         ttk.Label(header, text="Automated SoOp capture", style="Submenu.TLabel").pack(
             side="left")
-        ttk.Label(header, text=f"→ bash {paths.rel(paths.SOOP_CAPTURE_SH)}",
+        ttk.Label(header,
+                  text=f"{theme.glyph('arrow')} bash "
+                       f"{paths.rel(paths.SOOP_CAPTURE_SH)}",
                   style="Muted.TLabel").pack(side="left", padx=(10, 0))
 
         ttk.Label(root, style="Muted.TLabel", wraplength=880, justify="left",
@@ -95,7 +97,7 @@ class AutomationPanel(ttk.Frame):
         t = self.target_form
         t.add("sat", "Satellite filter", placeholder="all", width=18,
               help_text="Case-insensitive substring of the name or CATNR: "
-                        "IRIDIUM, GLOBALSTAR, 43250 …")
+                        f"IRIDIUM, GLOBALSTAR, 43250 {theme.glyph('ellipsis')}")
         t.add("min_elev", "Min peak elevation", placeholder="15", unit="deg", width=10,
               help_text="Passes whose peak stays below this are skipped.")
         t.add("lead", "Start lead", placeholder="10", unit="s", width=10,
@@ -167,7 +169,8 @@ class AutomationPanel(ttk.Frame):
 
         # ── planner ──
         planner = widgets.Card(root, "Pass planner",
-                               f"→ python {paths.rel(paths.SOOP_PLANNER_PY)}")
+                               f"{theme.glyph('arrow')} python "
+                               f"{paths.rel(paths.SOOP_PLANNER_PY)}")
         planner.pack(fill="x")
         ttk.Label(planner.body, style="PanelMuted.TLabel", wraplength=860,
                   justify="left",

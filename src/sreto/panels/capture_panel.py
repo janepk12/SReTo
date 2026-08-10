@@ -63,7 +63,8 @@ class CapturePanel(ttk.Frame):
         header = ttk.Frame(root)
         header.pack(fill="x", pady=(0, 10))
         ttk.Label(header, text="Manual capture", style="Submenu.TLabel").pack(side="left")
-        ttk.Label(header, text=f"→ bash {paths.rel(paths.CAPTURE_SH)}",
+        ttk.Label(header,
+                  text=f"{theme.glyph('arrow')} bash {paths.rel(paths.CAPTURE_SH)}",
                   style="Muted.TLabel").pack(side="left", padx=(10, 0))
 
         ttk.Label(root, style="Muted.TLabel", wraplength=880, justify="left",
@@ -170,7 +171,8 @@ class CapturePanel(ttk.Frame):
         self.meta_form.add("experiment_info", "Experiment info", placeholder="none",
                            width=64,
                            help_text="Free text. soop_capture.sh writes a "
-                                     "'SOOP_AUTO <sat> catnrNNNNN …' tag here, "
+                                     "'SOOP_AUTO <sat> catnrNNNNN "
+                                     f"{theme.glyph('ellipsis')}' tag here, "
                                      "which MAIN.py can resolve the satellite from.")
 
         # ── actions ──
@@ -328,7 +330,7 @@ class CapturePanel(ttk.Frame):
         self.app.console.gui_note(jobs.describe(job))
         self.app.console.gui_note("answers fed to capture.sh's prompts, in order:")
         for prompt, answer in zip(_prompt_labels(values), job.stdin_lines):
-            shown = answer if answer else "<blank → script default>"
+            shown = answer or f"<blank {theme.glyph('arrow')} script default>"
             self.app.console.gui_note(f"   {prompt:<28s} {shown}")
         size, duration, readable = jobs.estimate_capture(values)
         if size is not None:

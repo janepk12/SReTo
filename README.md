@@ -86,6 +86,20 @@ later:
 | Fedora / RHEL | `sudo dnf install python3-tkinter` |
 | conda | `conda install tk` |
 
+> **Linux: don't build the venv on conda's Python.** Conda ships its own Tk
+> compiled **without Xft**, which limits it to the legacy X11 core fonts — the
+> window then renders in a chunky bitmap face and looks broken, while nothing
+> actually is. Nothing errors, so there is nothing to search for. Build the
+> venv from the system interpreter instead:
+>
+> ```bash
+> sudo apt install python3-tk        # once
+> /usr/bin/python3 -m venv .venv     # NOT conda's python
+> ```
+>
+> `sreto --check` prints the fonts it resolved and warns if you are on such a
+> Tk, so you can confirm this in one command.
+
 > **The window opens locked.** It builds itself, then covers itself with a
 > blurred lock screen and refuses to run anything until you press **`L`, then
 > `Enter`**. That is about consent, not security: the app drives real hardware
@@ -167,9 +181,10 @@ sessions want anyway since the antenna doesn't move.
 | **History** | Every run ever, merged from the capture logs and SReTo's own journal |
 | **Pre-checks** | Radio, disk, plan age, TLE age — each failure names its fix |
 
-Everything SReTo writes goes to its own state directory. **It never writes into
-the science repository**, which is enforced by a test that hashes every file in
-that repo before and after exercising the whole app.
+**SReTo never writes into the science repository** — enforced by a test that
+hashes every file in that repo before and after exercising the whole app. Its
+journal, presets and logs go to its own state directory; captures and figures
+go wherever [the output section](#where-output-goes) says.
 
 ---
 
@@ -270,6 +285,7 @@ downloaded this repository. Step 5 is a project in its own right.
 | Symptom | Fix |
 |---|---|
 | `No module named '_tkinter'` | Install tkinter (see [Quick start](#quick-start)), then **recreate the venv** |
+| GUI looks like a chunky terminal font (Linux) | Your Tk has no Xft — almost always a venv built on conda's Python. Rebuild it with `/usr/bin/python3 -m venv .venv`. `sreto --check` confirms it |
 | `sreto: command not found` | `source .venv/bin/activate`, or use `python -m sreto` |
 | Window opens but does nothing | It's locked. Press `L`, then `Enter` |
 | Every panel says the repo is missing | `sreto --where` names which source it resolved from |
@@ -287,9 +303,33 @@ downloaded this repository. Step 5 is a project in its own right.
 | Variable | Default | Purpose |
 |---|---|---|
 | `SRETO_REPO_ROOT` | auto-detected | The science repository |
-| `SRETO_STATE_DIR` | platform user-data dir | The **only** place SReTo writes |
+| `SRETO_STATE_DIR` | platform user-data dir | Journal, presets, logs |
 | `SRETO_CONFIG_DIR` | platform config dir | Where `config.json` lives |
+| `SRETO_OUTPUT_DIR` | `output/` in the checkout | Captures and figures **when no science repo is configured** |
 | `SRETO_PYTHON` | `sys.executable` | Interpreter that runs the pipeline |
+
+### Where output goes
+
+With a science repository configured, captures and figures go where the
+pipeline already puts them — `02_DATA` and `03_FIGURES` inside that repo — and
+SReTo only ever **reads** them. It creates nothing there; `capture.sh` and
+`MAIN.py` make their own directories on first write.
+
+Without one, SReTo creates a tree of its own on first start, so a fresh clone
+has somewhere to work instead of naming directories that do not exist:
+
+```
+output/                                git-ignored, safe to delete
+├── 02_DATA/                           IQ captures and the master logs
+└── 03_FIGURES/
+    ├── ANALYSIS PLOTS/                what MAIN.py writes
+    └── SOOP_AVAILABILITY/             pass plans and sky maps
+```
+
+The layout deliberately mirrors the science repo, so pointing SReTo at a real
+one later (`sreto --set-repo …`) changes only which root those names hang off.
+An installed copy has no checkout to sit next to and uses `<state dir>/output`.
+`sreto --where` prints whichever applies.
 
 ---
 

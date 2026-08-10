@@ -550,7 +550,8 @@ class AvailabilityPanel(ttk.Frame):
         elif self._passes_up_at(when):
             # Something IS up; its track is still being propagated by the
             # worker _ensure_tracks started, which will redraw when it lands.
-            self.map_note.configure(text="propagating tracks…",
+            self.map_note.configure(
+                text=f"propagating tracks{theme.glyph('ellipsis')}",
                                     foreground=theme.MUTED)
         else:
             self.map_note.configure(text="nothing above the horizon",

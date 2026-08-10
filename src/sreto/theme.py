@@ -112,18 +112,138 @@ CONSOLE_ANSI = {
     "black": "#4a5158",
 }
 
+# Preferred first, degrading to families an X server has even with no
+# fontconfig at all. The tail matters: a Tk built without Xft can only see the
+# ~60 X11 core families, where the modern names above do not exist but
+# 'helvetica' and 'courier' (URW Nimbus, scalable Type 1) always do.
 _MONO_CANDIDATES = ("Menlo", "DejaVu Sans Mono", "Liberation Mono",
-                    "Ubuntu Mono", "Consolas", "Courier New", "TkFixedFont")
+                    "Ubuntu Mono", "Noto Sans Mono", "Consolas", "Courier New",
+                    "Nimbus Mono PS", "Nimbus Mono L", "Courier 10 Pitch",
+                    "Courier")
 _UI_CANDIDATES = ("SF Pro Text", "Helvetica Neue", "Inter", "Cantarell",
-                  "DejaVu Sans", "Segoe UI", "TkDefaultFont")
+                  "DejaVu Sans", "Liberation Sans", "Noto Sans", "Ubuntu",
+                  "Segoe UI", "Nimbus Sans", "Nimbus Sans L", "Helvetica")
 
 
-def _first_available(root, candidates, fallback):
-    families = set(tkfont.families(root))
+def _first_available(root, candidates, named_fallback):
+    """First candidate family Tk really has, else the family of a NAMED font.
+
+    Both halves of this were wrong, and together they rendered the entire Linux
+    GUI in the X11 'fixed' bitmap font — a chunky terminal face where macOS got
+    SF Pro, which is the whole of "it looks nothing like the Mac version".
+
+    1. X11 reports families lower-cased ('dejavu sans'), so a case-sensitive
+       membership test against a title-cased list can never match on Linux.
+       Matching folds case and returns Tk's own spelling, which is what Tk
+       wants back.
+
+    2. 'TkDefaultFont' is a NAMED FONT, not a family. Passing it as `family=`
+       asks for a family that does not exist, and Tk answers with 'fixed'
+       rather than an error — so the fallback that was supposed to be the safe
+       one was the single worst outcome available. The right fallback is the
+       family that named font actually resolves to, which is by definition
+       present and is the desktop's own UI font.
+    """
+    families = {name.lower(): name for name in tkfont.families(root)}
     for name in candidates:
-        if name in families:
-            return name
-    return fallback
+        hit = families.get(name.lower())
+        if hit:
+            return hit
+    try:
+        # Font(name=..., exists=True) rather than nametofont(..., root=...):
+        # the root kwarg on nametofont is newer than the Python this supports.
+        return tkfont.Font(root=root, name=named_fallback,
+                           exists=True).actual("family")
+    except Exception:                                      # noqa: BLE001
+        return "helvetica"        # an X core alias; present wherever X11 is
+
+
+# ── glyphs that not every Tk can draw ─────────────────────────────────────
+# Tk gets both Unicode coverage and per-glyph fallback across the installed
+# font set from Xft. Without Xft it is limited to the X11 core fonts, whose
+# scalable families are ISO8859-1 only — so anything past Latin-1 is drawn as
+# a hex box. Latin-1 itself is safe everywhere, which is why '·', '°', '±',
+# 'µ' and even '—' are used freely in this GUI and are NOT listed here.
+#
+# Each entry is (preferred, ASCII stand-in). Call theme.glyph('arrow') rather
+# than writing the character, and the degraded Tk gets '->' instead of a box.
+_GLYPHS = {
+    "arrow":    ("→", "->"),      # →  "this tab runs THIS command"
+    "ellipsis": ("…", "..."),     # …  "opens a dialog" / "in progress"
+    "enter":    ("⏎", "RET"),     # ⏎  the lock screen's Enter key cap
+    "info":     ("ⓘ", "(i)"),     # ⓘ  the About affordance in the status bar
+}
+
+# Whether Tk can render past Latin-1. Assumed yes until apply_theme() measures
+# it, so a glyph() call made before the theme exists still gets the nice form.
+unicode_text = True
+
+
+def _unicode_text_available(root):
+    """True when this Tk can draw characters beyond Latin-1.
+
+    Detected by CASE, not by measuring: a missing glyph still returns a width,
+    so tkfont.measure cannot tell "drawn" from "drawn as a box". X11 core
+    family names are lower-case by XLFD convention ('nimbus sans l'), while
+    fontconfig reports them cased ('DejaVu Sans', 'Noto Sans'). A Tk that
+    offers not one mixed-case family has no Xft, and therefore no Unicode.
+
+    The usual way to end up here is a venv built on conda's bundled Tk, which
+    is compiled without Xft; the same machine's system python3 is normally
+    fine. prechecks.check_text_rendering() says so, with the fix.
+    """
+    try:
+        return any(name != name.lower() for name in tkfont.families(root))
+    except Exception:                                      # noqa: BLE001
+        return True           # never let a probe failure downgrade the GUI
+
+
+def glyph(key):
+    """The nice character, or its ASCII stand-in on a Tk that cannot draw it."""
+    preferred, plain = _GLYPHS[key]
+    return preferred if unicode_text else plain
+
+
+# True once probe_fonts() has asked a real Tk. Before that, Fonts holds
+# placeholders and `unicode_text` is an assumption, and the pre-checks say so
+# rather than reporting a guess as a measurement.
+fonts_resolved = False
+
+# Named here rather than in prechecks so the GUI check and `sreto --check`
+# cannot drift apart — they are the same sentence about the same condition.
+XFT_HINT = (
+    "this Tk has no Xft, so it can only use the X11 core fonts: text is drawn "
+    "with a bitmap or Latin-1 face and every character past Latin-1 would be a "
+    "box. Almost always a venv built on conda's bundled Tk — rebuild it on the "
+    "system python (python3 -m venv .venv, after apt install python3-tk) and "
+    "the GUI gets the desktop's own antialiased fonts.")
+
+
+def probe_fonts(root):
+    """Resolve the font families and Unicode capability against `root`.
+
+    Split out of apply_theme so `sreto --check` can report the same answer
+    from a throwaway hidden root, with no styling and no window.
+    """
+    global unicode_text, fonts_resolved
+    Fonts.mono = _first_available(root, _MONO_CANDIDATES, "TkFixedFont")
+    Fonts.ui = _first_available(root, _UI_CANDIDATES, "TkDefaultFont")
+    unicode_text = _unicode_text_available(root)
+    fonts_resolved = True
+    return unicode_text
+
+
+def rendering_summary():
+    """[(label, value)] — what Tk will actually draw with.
+
+    Reads only what probe_fonts() already resolved on the Tk thread, so the
+    pre-checks worker can call it without touching the Tcl interpreter.
+    """
+    return [
+        ("ui font", Fonts.ui),
+        ("mono font", Fonts.mono),
+        ("unicode", "yes" if unicode_text else "NO — X11 core fonts only"),
+    ]
 
 
 class Fonts:
@@ -131,9 +251,13 @@ class Fonts:
 
     Kept as plain values for anything that needs a family name. The widgets
     themselves use the NAMED fonts in F, which is what makes zooming work.
+
+    The defaults are real FAMILIES, not the 'TkDefaultFont'/'TkFixedFont' named
+    fonts they used to be: a named font passed as a family silently resolves to
+    the 'fixed' bitmap face — see _first_available.
     """
-    mono = "TkFixedFont"
-    ui = "TkDefaultFont"
+    mono = "courier"
+    ui = "helvetica"
     size = 11
     size_small = 10
     size_mono = 11
@@ -291,8 +415,7 @@ def _configure_metrics(style):
 def apply_theme(root, scale=1.0):
     """Style every ttk widget class the GUI uses. Returns the ttk.Style."""
     global _root, _style, _scale
-    Fonts.mono = _first_available(root, _MONO_CANDIDATES, "TkFixedFont")
-    Fonts.ui = _first_available(root, _UI_CANDIDATES, "TkDefaultFont")
+    probe_fonts(root)
 
     _root = root
     _scale = max(MIN_SCALE, min(MAX_SCALE, float(scale)))

@@ -35,6 +35,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prose so the CLI, the pre-check hints and the README cannot drift apart.
 - **`sreto --radios`** — prints that catalogue, including the fact that
   `--radio` is not a flag yet, so nobody discovers that by typing one.
+- **An output tree SReTo creates for itself** when no science repository is
+  configured: `output/02_DATA`, `output/03_FIGURES/ANALYSIS PLOTS` and
+  `output/03_FIGURES/SOOP_AVAILABILITY`, next to the checkout and covered by a
+  new `output/` line in `.gitignore` so a multi-gigabyte capture can never be
+  committed. The layout mirrors the science repo, so `sreto --set-repo` later
+  changes only which root the names hang off. Installed copies (no checkout)
+  use `<state dir>/output` instead of writing into `site-packages`. Override
+  with `$SRETO_OUTPUT_DIR`. Nothing is ever created inside a *configured*
+  science repository — `ensure_output_dirs()` returns immediately in that case.
+- **A `text rendering` pre-check**, and a `fonts` block in `sreto --check`,
+  reporting the families Tk resolved and warning when it cannot draw past
+  Latin-1 — the condition that makes the GUI look broken while working. The
+  hint names the usual cause (a venv built on conda's Xft-less Tk) and the fix.
+- **`tests/test_fonts_and_output.py`** — asserts a resolved family is one Tk
+  will not substitute (which is what catches the `fixed` regression), that
+  every glyph has an ASCII stand-in, and that the output tree is created,
+  idempotent, git-ignored, and never placed inside the science repo.
+  Font resolution and the output root are additionally exercised against
+  reproduced macOS / Xft / X-core family lists and against each platform's
+  directory conventions, because the macOS path cannot be run on Linux CI and
+  "it was never broken there" is only true until someone changes the resolver.
+- **`make_desktop_app.sh` warns when the interpreter it baked in has no Xft.**
+  It prefers the conda env, which on Linux is exactly the Tk that renders the
+  bitmap font — and a desktop launcher makes that choice permanent. macOS is
+  exempt: Aqua has no Xft and needs none.
 - **`tests/test_radios.py`** — asserts the catalogue is well-formed and, most
   importantly, that a single-channel radio can never be listed as supported or
   as merely pending. One tuner cannot produce a carrier phase difference, and
@@ -47,6 +72,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and capture commands, a command reference, and a troubleshooting table.
 
 ### Fixed
+
+- **The Linux GUI rendered entirely in the X11 `fixed` bitmap font** — a chunky
+  terminal face, nothing like the macOS build — while raising no error, because
+  nothing was failing. Two bugs compounded in `theme._first_available`:
+  `tkfont.families()` reports lower-cased names on X11 (`dejavu sans`), so the
+  case-sensitive match against a title-cased candidate list could never hit;
+  and the fallback then passed `family="TkDefaultFont"`, which is a *named
+  font*, not a family. Tk answers an unknown family with `fixed` instead of an
+  error, so the branch meant to be the safe one produced the worst available
+  result. Matching now folds case, and the fallback resolves the named font to
+  the family it actually points at — the desktop's own UI font.
+- **Characters past Latin-1 became hex boxes on a Tk without Xft.** Such a Tk
+  can only reach the X11 core fonts, whose scalable families are ISO8859-1
+  only. `theme.glyph()` now returns an ASCII stand-in (`->`, `...`, `RET`,
+  `(i)`) when that is the case, so the degraded configuration is plain rather
+  than broken-looking. Latin-1 itself is safe everywhere and is still used
+  freely (`·`, `°`, `±`, `µ`, `—`).
+- **Capture and figure paths named a directory nothing had created.** With no
+  science repository, `02_DATA`, `03_FIGURES/ANALYSIS PLOTS` and
+  `03_FIGURES/SOOP_AVAILABILITY` were derived from a `no-science-repo`
+  placeholder: the paths were displayed in the banner and the About box, the
+  status-bar reveal buttons opened them, and the disk pre-check tried to `stat`
+  them — all pointing at nothing. They now fall back to `config.output_root()`,
+  a tree SReTo owns and creates on first start.
 
 - **The window could not open without a science repository** — the project's
   headline claim, and it had stopped being true. `AnalysisPanel.__init__`

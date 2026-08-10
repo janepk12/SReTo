@@ -58,6 +58,36 @@ if [ -z "$PY" ] || ! "$PY" -c "import tkinter" >/dev/null 2>&1; then
 fi
 echo "interpreter : $PY"
 
+# ── X11 only: is this interpreter's Tk actually usable for a GUI? ──────────
+# The resolution above prefers the conda env, and conda's Tk on Linux is built
+# WITHOUT Xft. Such a Tk sees only the legacy X11 core fonts, so the window
+# renders in a bitmap face and looks broken while working perfectly — nothing
+# errors, so there is nothing to search for. Baking that interpreter into a
+# desktop launcher makes it permanent, which is why the check is here and not
+# only in `sreto --check`. Aqua has no Xft and needs none, so macOS is exempt.
+if [ "$(uname -s)" != "Darwin" ]; then
+  XFT_OK=$("$PY" - <<'PYEOF' 2>/dev/null || echo unknown
+import tkinter, tkinter.font as f
+r = tkinter.Tk(); r.withdraw()
+print("yes" if any(n != n.lower() for n in f.families(r)) else "no")
+r.destroy()
+PYEOF
+)
+  if [ "$XFT_OK" = "no" ]; then
+    SYS_PY="$(command -v /usr/bin/python3 || true)"
+    echo "WARNING     : this Tk has no Xft — the GUI will render in the X11"
+    echo "              bitmap font and look broken (it will still work)."
+    if [ -n "$SYS_PY" ] && "$SYS_PY" -c "import tkinter" >/dev/null 2>&1; then
+      echo "              Build the launcher against the system python instead:"
+      echo "                  SDRR_ENV= PATH=/usr/bin:\$PATH $0 $*"
+    else
+      echo "              Install the system tkinter (apt install python3-tk)"
+      echo "              and build the launcher against /usr/bin/python3."
+    fi
+    echo "              See README: 'Linux: don't build the venv on conda'."
+  fi
+fi
+
 # The bundle needs the REAL binary (bin/python is a symlink to bin/python3.12)
 # and the env prefix, so the copy inside the bundle can find its stdlib.
 PY_REAL="$("$PY" -c 'import os, sys; print(os.path.realpath(sys.executable))')"

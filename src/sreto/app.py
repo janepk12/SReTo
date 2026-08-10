@@ -57,6 +57,10 @@ class App:
 
     def __init__(self):
         paths.ensure_state_dirs()
+        # Before the panels are built: several of them show the capture and
+        # figure directories, and a path on screen that does not exist reads as
+        # a broken install. No-op when a science repo owns those directories.
+        self._created_output = paths.ensure_output_dirs()
 
         self.root = tk.Tk()
         self.root.minsize(*MIN_SIZE)
@@ -207,7 +211,7 @@ class App:
 
         # Small, permanent, and out of the way — the lock screen's credits are
         # gone once you unlock, and this is where they live afterwards.
-        about_text = "ⓘ " + " · ".join(
+        about_text = theme.glyph("info") + " " + " · ".join(
             filter(None, (branding.author(), branding.institution())))
         about = tk.Label(bar, text=about_text,
                          background=theme.SURFACE, foreground=theme.MUTED,
@@ -387,14 +391,24 @@ class App:
                 "analysed until one is configured.")
             for line in config.missing_repo_message().splitlines():
                 self.console.gui_error(f"    {line}" if line.strip() else "")
-            return
+        else:
+            self.console.gui_note(f"repo      : {paths.REPO_ROOT} "
+                                  f"(from {config.repo_source()})")
 
-        self.console.gui_note(f"repo      : {paths.REPO_ROOT} "
-                              f"(from {config.repo_source()})")
+        # Printed either way. Where output goes is exactly the question a user
+        # without a repo is left asking, and it used to be the one thing the
+        # banner stopped short of answering.
         self.console.gui_note(f"python    : {paths.python_executable()}")
         self.console.gui_note(f"state     : {paths.GUI_STATE_DIR}")
         self.console.gui_note(f"captures  : {paths.rel(paths.DATA_DIR)}")
         self.console.gui_note(f"figures   : {paths.rel(paths.ANALYSIS_DIR)}")
+        self.console.gui_note(f"plans     : {paths.rel(paths.SOOP_DIR)}")
+        if self._created_output:
+            self.console.gui_note(
+                f"created {len(self._created_output)} output directory(ies) "
+                f"under {paths.OUTPUT_ROOT} — git-ignored, see its README.txt")
+        if not paths.have_science_repo():
+            return
         self.console.gui_note("run the Pre-checks tab before a session.")
 
     # ── job lifecycle ─────────────────────────────────────────────────────
@@ -670,7 +684,7 @@ class App:
             return
         self.console.gui_note("stopping — SIGINT to the process group, then "
                               "TERM, then KILL")
-        self.status.detail = "stopping…"
+        self.status.detail = f"stopping{theme.glyph('ellipsis')}"
         self._apply_status()
         handle.stop()
 

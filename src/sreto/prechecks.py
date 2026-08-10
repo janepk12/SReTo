@@ -164,6 +164,30 @@ def check_disk():
     return out
 
 
+def check_text_rendering():
+    """Will the window be drawn with real fonts, or with the X11 bitmap face?
+
+    Here because it has cost real confusion: on a Tk without Xft the whole GUI
+    renders in a chunky terminal font and looks broken, while nothing actually
+    IS broken — so there is no error anywhere to search for. Naming it turns a
+    mystery into a one-line fix.
+
+    Reads what theme.probe_fonts() resolved on the Tk thread; makes no Tcl call
+    of its own, because run_all() runs on a worker thread.
+    """
+    from . import theme  # imported late: pulls in tkinter
+
+    if not theme.fonts_resolved:
+        return [Check("text rendering", INFO, "not measured yet",
+                      "opens with the window — run this from the GUI's "
+                      "Pre-checks tab, or `sreto --check`", "display")]
+    detail = f"{theme.Fonts.ui} / {theme.Fonts.mono}"
+    if theme.unicode_text:
+        return [Check("text rendering", OK, detail, "", "display")]
+    return [Check("text rendering", WARN, f"{detail} — Latin-1 only",
+                  theme.XFT_HINT, "display")]
+
+
 def check_directories():
     out = []
     for label, path, must_write in (
@@ -315,6 +339,7 @@ ALL_CHECKS = (
     ("Science repository", check_science_repo),
     ("Tools", check_scripts),
     ("Python environment", check_python_env),
+    ("Display", check_text_rendering),
     ("Radio", check_bladerf),
     ("Disk", check_disk),
     ("Directories", check_directories),

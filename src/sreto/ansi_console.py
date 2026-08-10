@@ -83,7 +83,8 @@ class AnsiConsole(ttk.Frame):
         self.status.pack(side="left", padx=(12, 0))
 
         ttk.Button(bar, text="Clear", command=self.clear, width=7).pack(side="right")
-        ttk.Button(bar, text="Save log…", command=self.save_to_file,
+        ttk.Button(bar, text=f"Save log{theme.glyph('ellipsis')}",
+                   command=self.save_to_file,
                    width=10).pack(side="right", padx=(0, 6))
         ttk.Checkbutton(bar, text="Follow", variable=self._autoscroll,
                         style="TCheckbutton").pack(side="right", padx=(0, 10))

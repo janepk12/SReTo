@@ -45,6 +45,7 @@ CODE_SUBDIR = "01_CODE"
 ENV_REPO_ROOT = "SRETO_REPO_ROOT"
 ENV_STATE_DIR = "SRETO_STATE_DIR"
 ENV_CONFIG_DIR = "SRETO_CONFIG_DIR"
+ENV_OUTPUT_DIR = "SRETO_OUTPUT_DIR"
 
 APP_DIRNAME = "sreto"
 
@@ -86,6 +87,47 @@ def state_dir():
 
 def config_path():
     return os.path.join(config_dir(), "config.json")
+
+
+def _source_checkout_root():
+    """The SReTo checkout this package is running from, or None if installed.
+
+    A checkout is ``<root>/src/sreto/``, so the grandparent holds pyproject.toml.
+    An installed wheel is ``<venv>/lib/pythonX.Y/site-packages/sreto/``, whose
+    grandparent holds no such file — and writing gigabytes of captures into
+    site-packages would be wrong even where it is permitted.
+    """
+    package = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(os.path.dirname(package))
+    if os.path.isfile(os.path.join(root, "pyproject.toml")):
+        return root
+    return None
+
+
+def output_root():
+    """Where captures and figures go when there is NO science repository.
+
+    With a repo configured this is never consulted: the pipeline owns
+    ``02_DATA`` and ``03_FIGURES`` there, and SReTo only reads them. Without
+    one, the paths used to point into ``<state>/no-science-repo`` — a directory
+    nothing created, so every output path in the GUI named somewhere that did
+    not exist and the reveal buttons all failed.
+
+    Resolved from the first source that answers:
+
+        1. ``$SRETO_OUTPUT_DIR``
+        2. ``<checkout>/output`` for a source checkout — next to the code you
+           cloned, which is where you look for it. Kept out of git by the
+           ``output/`` line in .gitignore, so captures can never be committed.
+        3. ``<state dir>/output`` for an installed copy, which has no checkout.
+    """
+    explicit = os.environ.get(ENV_OUTPUT_DIR)
+    if explicit:
+        return os.path.abspath(os.path.expanduser(explicit))
+    checkout = _source_checkout_root()
+    if checkout and os.access(checkout, os.W_OK):
+        return os.path.join(checkout, "output")
+    return os.path.join(state_dir(), "output")
 
 
 # ── finding the science repo ──────────────────────────────────────────────
@@ -236,10 +278,12 @@ def missing_repo_message():
 def summary():
     """[(label, value)] — what the About box and pre-checks display."""
     root, source = resolve()
+    configured = is_configured()
     return [
         ("science repo", root or "NOT CONFIGURED"),
         ("resolved from", source),
-        ("repo usable", "yes" if is_configured() else "no"),
+        ("repo usable", "yes" if configured else "no"),
+        ("output root", root if configured else f"{output_root()}  (SReTo's own)"),
         ("state dir", state_dir()),
         ("config file", config_path()),
     ]

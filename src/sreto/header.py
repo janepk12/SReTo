@@ -130,7 +130,8 @@ class HeaderTile(ttk.Frame):
 
     def request_laptop_fix(self):
         """Ask macOS for one fix, on a worker thread."""
-        self.locate_btn.configure(state="disabled", text="locating…")
+        self.locate_btn.configure(
+            state="disabled", text=f"locating{theme.glyph('ellipsis')}")
         self.app.console.gui_note(
             "requesting one location fix from this machine — it is cached "
             "afterwards, so Location Services can go back off")

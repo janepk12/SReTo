@@ -91,7 +91,7 @@ class PrecheckPanel(ttk.Frame):
         self.run_btn.configure(state="disabled")
         self.progress.pack(side="left", padx=(12, 0))
         self.progress.start(12)
-        self.chip.set("running…", theme.RUNNING)
+        self.chip.set(f"running{theme.glyph('ellipsis')}", theme.RUNNING)
 
         probe = self.probe_var.get()
         threading.Thread(target=self._worker, args=(probe,), daemon=True,
@@ -150,4 +150,5 @@ class PrecheckPanel(ttk.Frame):
             line = f"  {c.status:<5s} {c.name:<26s} {c.detail}"
             self.app.console.gui_note(line)
             if c.hint and c.status in (prechecks.WARN, prechecks.FAIL):
-                self.app.console.gui_note(f"        → {c.hint}")
+                self.app.console.gui_note(
+                    f"        {theme.glyph('arrow')} {c.hint}")

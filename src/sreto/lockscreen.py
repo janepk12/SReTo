@@ -292,7 +292,7 @@ class LockScreen:
         keys = tk.Frame(pad, background=theme.PANEL)
         keys.pack()
         self._key_boxes = []
-        for label in (UNLOCK_KEY.upper(), "⏎"):
+        for label in (UNLOCK_KEY.upper(), theme.glyph("enter")):
             box = tk.Label(keys, text=label, width=3, height=1,
                            background=theme.SURFACE, foreground=theme.MUTED,
                            highlightbackground=theme.BORDER, highlightthickness=1,
