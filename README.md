@@ -3,7 +3,7 @@
 **Plan which satellites are worth recording, record them properly, and keep
 track of what you recorded.**
 
-SReTo is a desktop app for running a **bistatic GNSS-R / SoOp-R** experiment:
+SReTo is a desktop app for running a **bistatic SoOp-R** experiment:
 pointing two antennas at the sky and the ground, catching signals from
 satellites that were never meant for you, and measuring what the ground did to
 them.
@@ -348,6 +348,3 @@ this page doesn't duplicate it.
 
 [MIT](LICENSE) © Luke Pugin
 
-Institution branding is **not** bundled — `src/sreto/assets/README.md`
-documents the slot to drop your own institution's logo into. Inventing or
-redistributing an institution's mark is not something a build script should do.
