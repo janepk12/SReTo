@@ -339,6 +339,105 @@ class TestPrechecks(unittest.TestCase):
         self.assertIn(f"DISK_HEADROOM_GB={int(prechecks.DISK_HEADROOM_GB)}", src)
         self.assertIn(f"PLAN_MAX_AGE_H={int(prechecks.PLAN_MAX_AGE_H)}", src)
 
+    def test_a_capture_only_machine_does_not_get_a_red_board(self):
+        """The field Pi has no numpy and does not need one.
+
+        These modules belong to the ANALYSIS chain. Failing the board for them
+        would tell an operator whose rig is perfectly able to record that it is
+        broken, and the lesson learned is to stop reading the board.
+        """
+        for c in prechecks.check_python_env():
+            self.assertNotEqual(
+                c.status, prechecks.FAIL,
+                f"{c.name} is FAIL, but capture needs no third-party package")
+
+
+class TestUsbLinkSpeed(unittest.TestCase):
+    """A bladeRF that quietly enumerated on USB 2 records SHORT files.
+
+    Nothing else in the board catches it: the device is found, the probe
+    succeeds, the capture starts. Built against a fake sysfs so the Linux
+    branch — the one that matters, because that is where the field Pi is — is
+    actually exercised on the machine this is developed on.
+    """
+
+    def _sysfs(self, *devices):
+        import shutil
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        for name, vendor, speed in devices:
+            d = os.path.join(root, name)
+            os.makedirs(d)
+            with open(os.path.join(d, "idVendor"), "w") as f:
+                f.write(vendor + "\n")
+            with open(os.path.join(d, "speed"), "w") as f:
+                f.write(speed + "\n")
+        return root
+
+    def _one(self, *devices):
+        checks = prechecks.check_usb_link(self._sysfs(*devices))
+        self.assertEqual(len(checks), 1)
+        return checks[0]
+
+    def test_superspeed_passes(self):
+        check = self._one(("2-1", "2cf0", "5000"))
+        self.assertEqual(check.status, prechecks.OK)
+
+    def test_high_speed_is_a_failure_with_the_fix_in_the_hint(self):
+        check = self._one(("1-1", "2cf0", "480"))
+        self.assertEqual(check.status, prechecks.FAIL)
+        self.assertIn("USB 3", check.hint)
+
+    def test_it_ignores_other_devices_on_the_bus(self):
+        """A USB 2 hub next to a SuperSpeed bladeRF must not read as a fault."""
+        check = self._one(("1-1", "1d6b", "480"), ("2-1", "2cf0", "5000"))
+        self.assertEqual(check.status, prechecks.OK)
+
+    def test_no_radio_is_information_not_a_failure(self):
+        check = self._one(("1-1", "1d6b", "480"))
+        self.assertEqual(check.status, prechecks.INFO)
+
+    def test_an_unreadable_speed_does_not_crash(self):
+        check = self._one(("1-1", "2cf0", "not-a-number"))
+        self.assertEqual(check.status, prechecks.WARN)
+
+    def test_a_machine_without_sysfs_says_so_rather_than_failing(self):
+        check = prechecks.check_usb_link(os.path.join(tempfile.gettempdir(),
+                                                      "definitely-not-sysfs"))
+        self.assertEqual(check[0].status, prechecks.INFO)
+
+
+class TestSustainedWriteRate(unittest.TestCase):
+    """The number that decides SUCCESS vs a SHORT file on a slow disk."""
+
+    def test_it_matches_the_figure_the_scripts_quote(self):
+        """soop_capture.sh's own header says 10 MS/s 2ch 16bit = 0.8 GB per
+        10 s. That is 80 MB/s, and it is the threshold a Pi's microSD fails."""
+        rate = jobs.capture_rate_bytes_per_sec(
+            {"samplerate": "10", "channels": "1,2", "bitmode": "16bit"})
+        self.assertAlmostEqual(rate / 1e6, 80.0)
+
+    def test_single_channel_and_8bit_each_halve_it(self):
+        base = {"samplerate": "10", "channels": "1,2", "bitmode": "16bit"}
+        full = jobs.capture_rate_bytes_per_sec(base)
+        self.assertAlmostEqual(
+            jobs.capture_rate_bytes_per_sec(dict(base, channels="1")), full / 2)
+        self.assertAlmostEqual(
+            jobs.capture_rate_bytes_per_sec(dict(base, bitmode="8bit")), full / 2)
+
+    def test_it_agrees_with_capture_sh_s_own_size_arithmetic(self):
+        """rate x duration must equal the size estimate, or one of the two is
+        lying to the user about the same capture."""
+        values = {"samplerate": "5", "channels": "1,2", "bitmode": "16bit",
+                  "capture_mode": "2", "amount": "20"}
+        size, duration, _readable = jobs.estimate_capture(values)
+        rate = jobs.capture_rate_bytes_per_sec(values)
+        self.assertAlmostEqual(rate * duration, size)
+
+    def test_a_blank_form_does_not_crash_it(self):
+        self.assertIsNone(jobs.capture_rate_bytes_per_sec({"samplerate": "nope"}))
+        self.assertIsNone(jobs.capture_rate_bytes_per_sec({"samplerate": "0"}))
+
 
 if __name__ == "__main__":
     unittest.main()

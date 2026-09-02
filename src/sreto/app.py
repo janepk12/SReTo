@@ -46,10 +46,13 @@ from .panels.automation_panel import AutomationPanel
 from .panels.availability_panel import AvailabilityPanel
 from .panels.capture_panel import CapturePanel
 from .panels.history_panel import HistoryPanel
+from .panels.physics_panel import PhysicsPanel
 from .panels.precheck_panel import PrecheckPanel
 
 APP_TITLE = "SReTo — SDR Reflectometry Toolkit"
 MIN_SIZE = (1180, 760)
+CONSOLE_LABEL_POPOUT = "Pop out console"
+CONSOLE_LABEL_DOCK = "Dock console"
 STRAIN_POLL_MS = 2000       # how often the load average is re-read while busy
 
 
@@ -76,6 +79,7 @@ class App:
 
         self._build()
         self._build_menu()
+        self._bind_popout_key()
         self._bind_zoom_keys()
         theme.on_scale_change(self._on_scale_changed)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -93,18 +97,32 @@ class App:
     def _build(self):
         self._build_header()
 
-        split = ttk.PanedWindow(self.root, orient="vertical")
+        # Kept on self: the console pop-out needs to reach both panes after
+        # _build returns.
+        self.split = split = ttk.PanedWindow(self.root, orient="vertical")
         split.pack(fill="both", expand=True, padx=10, pady=(0, 6))
 
         self.notebook = ttk.Notebook(split)
         split.add(self.notebook, weight=3)
 
-        self.console = ansi_console.AnsiConsole(split, title="CONSOLE")
-        split.add(self.console, weight=2)
+        # The console lives inside a CLASSIC tk.Frame, not directly in the
+        # split. That host is what `wm manage` turns into a real window when
+        # the console is popped out — Tk refuses to manage a ttk widget
+        # ("must be a frame, labelframe or toplevel"), and a widget cannot be
+        # reparented across toplevels in Tk at all, so the host is the only
+        # way to move the console between the split and its own window WITHOUT
+        # rebuilding it and losing its scrollback.
+        self.console_host = tk.Frame(split, background=theme.PANEL,
+                                     highlightthickness=0, bd=0)
+        self.console = ansi_console.AnsiConsole(self.console_host,
+                                                title="CONSOLE")
+        self.console.pack(fill="both", expand=True)
+        split.add(self.console_host, weight=2)
 
         self.capture_panel = CapturePanel(self.notebook, self)
         self.automation_panel = AutomationPanel(self.notebook, self)
         self.analysis_panel = AnalysisPanel(self.notebook, self)
+        self.physics_panel = PhysicsPanel(self.notebook, self)
         self.availability_panel = AvailabilityPanel(self.notebook, self)
         self.history_panel = HistoryPanel(self.notebook, self)
         self.precheck_panel = PrecheckPanel(self.notebook, self)
@@ -112,6 +130,9 @@ class App:
         self.notebook.add(self.capture_panel, text="Capture")
         self.notebook.add(self.automation_panel, text="Automation")
         self.notebook.add(self.analysis_panel, text="Analysis")
+        # Physics sits after Analysis because it reads what Analysis produces —
+        # the tab order is the data flow.
+        self.notebook.add(self.physics_panel, text="Physics")
         self.notebook.add(self.availability_panel, text="SoOp availability")
         self.notebook.add(self.history_panel, text="History")
         self.notebook.add(self.precheck_panel, text="Pre-checks")
@@ -219,6 +240,75 @@ class App:
         about.bind("<Leave>", lambda _e: about.configure(foreground=theme.MUTED))
 
     # ── zoom ──────────────────────────────────────────────────────────────
+    # ── console pop-out ───────────────────────────────────────────────────
+    # `wm manage` promotes the host frame to a real top-level window and
+    # `wm forget` puts it back, which is the only way to move a live widget
+    # out of a paned window in Tk without destroying and rebuilding it.
+    # Rebuilding would drop the scrollback, and the scrollback is the reason
+    # anybody pops the console out in the first place.
+    def _bind_popout_key(self):
+        for modifier in ("Command", "Control"):
+            self.root.bind_all(f"<{modifier}-J>", self._on_popout_console)
+            self.root.bind_all(f"<{modifier}-Shift-j>", self._on_popout_console)
+
+    def _on_popout_console(self, _event=None):
+        self.toggle_console_popout()
+        return "break"
+
+    def console_popped_out(self):
+        return self.console_host.winfo_manager() == "wm"
+
+    def popout_label(self):
+        return (CONSOLE_LABEL_DOCK if self.console_popped_out()
+                else CONSOLE_LABEL_POPOUT)
+
+    def toggle_console_popout(self):
+        if self.console_popped_out():
+            self.dock_console()
+        else:
+            self.popout_console()
+        if getattr(self, "_popout_menu", None) is not None:
+            self._popout_menu.entryconfigure(self._popout_menu_index,
+                                             label=self.popout_label())
+
+    def popout_console(self):
+        """Detach the console into its own resizable window."""
+        if self.console_popped_out():
+            return
+        if self.console_host.winfo_manager():
+            self.split.forget(self.console_host)
+        host, tkw = self.console_host, self.console_host.tk
+        tkw.call("wm", "manage", host._w)
+        tkw.call("wm", "title", host._w, "SReTo — Console")
+        tkw.call("wm", "geometry", host._w, self._popout_geometry())
+        # Closing the window docks the console rather than destroying it;
+        # destroying the host would take the scrollback with it and leave the
+        # app with nowhere to print.
+        tkw.call("wm", "protocol", host._w, "WM_DELETE_WINDOW",
+                 host.register(self.dock_console))
+
+    def dock_console(self):
+        """Put a popped-out console back into the split."""
+        if not self.console_popped_out():
+            return
+        host = self.console_host
+        try:
+            self._popout_geom = host.tk.call("wm", "geometry", host._w)
+        except tk.TclError:                                 # pragma: no cover
+            pass
+        host.tk.call("wm", "forget", host._w)
+        self.split.add(host, weight=2)
+
+    def _popout_geometry(self):
+        """Where the pop-out opens: where it was last, else beside the main
+        window at a size that can actually show a run log."""
+        if getattr(self, "_popout_geom", None):
+            return self._popout_geom
+        self.root.update_idletasks()
+        x = self.root.winfo_rootx() + 40
+        y = self.root.winfo_rooty() + max(self.root.winfo_height() - 320, 60)
+        return f"960x360+{x}+{y}"
+
     def _build_menu(self):
         """A real menu bar, so the zoom levels are discoverable and named."""
         menubar = tk.Menu(self.root)
@@ -234,6 +324,12 @@ class App:
         for step in theme.SCALE_STEPS:
             view.add_command(label=f"{step * 100:.0f}%",
                              command=lambda s=step: self.set_zoom(s))
+        view.add_separator()
+        self._popout_menu = view
+        self._popout_menu_index = view.index("end") + 1
+        view.add_command(label=CONSOLE_LABEL_POPOUT,
+                         accelerator="Cmd/Ctrl+Shift+J",
+                         command=self.toggle_console_popout)
         menubar.add_cascade(label="View", menu=view)
 
         tools = tk.Menu(menubar, tearoff=0)
@@ -588,6 +684,11 @@ class App:
         self.history_panel.refresh()
         if handle.job.kind == "capture":
             self.analysis_panel.refresh_captures()
+            self.physics_panel.refresh_captures()
+        if handle.job.kind == "analysis":
+            # MAIN.py writes the physics summary too when the stage is enabled,
+            # so the chain on screen is stale the moment an analysis finishes.
+            self.physics_panel.reload()
         if handle.job.kind == "planner":
             self.availability_panel.refresh()
             self.automation_panel.refresh_status()

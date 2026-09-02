@@ -26,11 +26,18 @@ _WF_BINS = 2048
 
 # Stages that hard-require two RX chains, with the line that raises. The whole
 # method is interferometric: rx1 (direct/RE) against rx2 (reflected/GR).
+#
+# These are file:line references INTO THE SCIENCE REPO (01_CODE/), which this
+# package does not control the history of — they drift whenever those files
+# are edited and nobody remembers this table exists. Verified against sdr_r
+# commit 9536cb2 (2026-07-28) plus this session's own restructure audit; if a
+# future `sreto --set-repo` points at a sdr_r whose line numbers moved again,
+# re-grep the raise text quoted in each comment below and update the number.
 DUAL_CHANNEL_STAGES = [
-    ("phase waterfalls + 1D", "waterfalls.py:334", None),
-    ("IQ dashboard", "iq_dashboard.py:121", "RUN_IQ_DASHBOARD_CALCULATIONS"),
-    ("band cross-correlation", "band_correlator.py:137", "RUN_SIGNAL_XCORR"),
-    ("physics extraction", "physics.py:608", "RUN_PHYSICS_EXTRACTION"),
+    ("phase waterfalls + 1D", "waterfalls.py:363", None),          # "Requires dual-channel data."
+    ("IQ dashboard", "iq_dashboard.py:124", "RUN_IQ_DASHBOARD_CALCULATIONS"),  # "requires a dual-channel"
+    ("band cross-correlation", "band_correlator.py:140", "RUN_SIGNAL_XCORR"),  # "requires a dual-channel"
+    ("physics extraction", "physics.py:608", "RUN_PHYSICS_EXTRACTION"),       # "requires a dual-channel capture."
 ]
 
 
@@ -355,10 +362,15 @@ class AnalysisPanel(ttk.Frame):
 
     # ── running ───────────────────────────────────────────────────────────
     def _save_dir(self):
-        form = self.forms.get("output")
-        if form and form.fields["SAVE_DIR"].get():
-            return form.fields["SAVE_DIR"].get()
-        return self.defaults.get("SAVE_DIR") or paths.ANALYSIS_DIR
+        """Where THIS run's figures will land.
+
+        SAVE_DIR is not a form field (see main_params.PARAM_SPECS) — MAIN.py
+        computes it itself from file_name, so mirror that here rather than
+        falling back to the flat ANALYSIS_DIR root, which now holds one
+        subfolder per capture ever analysed, not just this one's output.
+        """
+        name = self.capture_var.get().strip()
+        return paths.analysis_dir(name) if name else paths.ANALYSIS_DIR
 
     def overrides(self):
         """Only fields the user actually filled in become overrides.
@@ -381,7 +393,7 @@ class AnalysisPanel(ttk.Frame):
 
         This is a hard block rather than a warning because there is no way
         through it: MAIN.py calls generate_phase_waterfalls_and_1d
-        UNCONDITIONALLY (MAIN.py:507), so no combination of stage toggles lets a
+        UNCONDITIONALLY (MAIN.py:539), so no combination of stage toggles lets a
         single-channel capture complete. Offering "run anyway" would only spend
         the read time to arrive at the same ValueError.
         """
@@ -401,7 +413,7 @@ class AnalysisPanel(ttk.Frame):
             "Reflectometry is interferometric: it compares rx1 (direct / RE) "
             "against rx2 (reflected / GR). These stages need both:\n\n"
             f"{stages}\n\n"
-            "The phase stage is called unconditionally at MAIN.py:507, so "
+            "The phase stage is called unconditionally at MAIN.py:539, so "
             "unticking boxes cannot get past it — the run would fail after "
             "reading the file.\n\n"
             "Use a capture whose name ends in _ch1_2, or re-capture with "

@@ -57,6 +57,19 @@ images = ["Pillow>=9.0"]
 # try/except in location.py and only ever on darwin.
 macos = ["pyobjc-framework-CoreLocation>=9.0; sys_platform == 'darwin'"]
 
+# The ported DSP pipeline (sreto.analysis: sdr_core / waterfalls /
+# iq_dashboard / band_correlator / physics, vendored from 01_CODE — see
+# src/sreto/analysis/__init__.py for the sync story). This is what makes
+# `pip install sreto[analysis]` able to actually COMPUTE waterfalls, the IQ
+# dashboard and the soil-moisture retrieval behind the Physics tab with no
+# separately-cloned science repo present, instead of
+# only being able to shell out to one that is configured. Kept optional and
+# out of the base `dependencies` list on purpose: the GUI itself (Capture /
+# Automation / SoOp / History / Pre-checks tabs, everything that only shells
+# out to the configured science repo's own tools) has never needed numpy/
+# scipy/matplotlib, and a bare `pip install sreto` should stay that light.
+analysis = ["numpy>=1.24", "scipy>=1.10", "matplotlib>=3.7"]
+
 dev = [
     "pytest>=7.0",
     "ruff>=0.5",
@@ -67,6 +80,7 @@ dev = [
 all = [
     "sreto[images]",
     "sreto[macos]",
+    "sreto[analysis]",
 ]
 
 [project.scripts]

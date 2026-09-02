@@ -116,13 +116,71 @@ class TestCaptureShPromptContract(unittest.TestCase):
                         f"a blank form should send only blank lines, got {answers}")
 
     def test_base_dir_matches_the_gui(self):
-        """capture.sh writes to BASE_DIR; the GUI reveals the same folder."""
-        m = re.search(r'^BASE_DIR="([^"]+)"', self.src, re.MULTILINE)
-        self.assertIsNotNone(m, "capture.sh no longer defines BASE_DIR")
-        self.assertEqual(m.group(1).rstrip("/"), paths.DATA_DIR.rstrip("/"),
-                         "capture.sh's BASE_DIR and gui/paths.DATA_DIR disagree — "
-                         "the GUI would open the wrong folder and list the wrong "
-                         "captures.")
+        """capture.sh writes into CAPTURES_DIR/<stem>/; the GUI reveals the
+        same parent folder.
+
+        capture.sh no longer hardcodes a BASE_DIR literal — it sources
+        01_CODE/paths.env (see capture.sh's own comment on why: soop_capture.sh
+        used to recover the directory by grepping 'BASE_DIR=' out of THIS file,
+        which could drift the moment the literal moved) and builds
+        CAPTURE_DIR="${CAPTURES_DIR}/${CAPTURE_STEM}". So the real contract is
+        no longer a single regex against capture.sh's text; it is that
+        capture.sh actually sources paths.env and keys its capture directory
+        off CAPTURES_DIR, and that repo_paths.py (the Python parser of that
+        SAME paths.env) resolves CAPTURES_DIR to what sreto.paths computes by
+        hand. Importing repo_paths.py directly (pure stdlib — os/re/pathlib,
+        exactly like sreto._lazy_orbits does for orbits.py) is the strongest
+        version of that check: it runs the SAME parser capture.sh's own
+        Python-side tools trust, rather than a second regex that could drift
+        from repo_paths.py's the way the old BASE_DIR regex drifted from
+        capture.sh.
+        """
+        # WHERE paths.env sits is layout-dependent (01_CODE/paths.env in the
+        # flat layout, 01_CODE/gui/config/paths.env in the package one), so the
+        # contract is that capture.sh SOURCES it — not the literal path it uses.
+        # Pinning the path made this fail the moment the science repo moved a
+        # file it was never really asserting anything about.
+        self.assertRegex(
+            self.src, r'(?m)^\s*\.\s+"[^"]*paths\.env"',
+            "capture.sh no longer sources paths.env — the single source of "
+            "truth for CAPTURES_DIR/DATA_DIR/etc. that both capture.sh and "
+            "sreto.paths are supposed to agree with.")
+        self.assertIn(
+            'CAPTURE_DIR="${CAPTURES_DIR}/${CAPTURE_STEM}"', self.src,
+            "capture.sh no longer keys its output directory off "
+            "${CAPTURES_DIR} — sreto.paths.CAPTURES_DIR would then be "
+            "pointing the GUI's 'reveal output folder' at the wrong place.")
+
+        # Load repo_paths.py BY LOCATION rather than by name. It moved into the
+        # application package (01_CODE/gui/repo_paths.py), so `import
+        # repo_paths` after a sys.path insert now resolves to nothing — and,
+        # worse, would resolve to the wrong file on a machine that happens to
+        # have another module of that name importable.
+        import importlib.util  # noqa: PLC0415
+        import os              # noqa: PLC0415
+        candidates = (os.path.join(paths.APP_DIR, "repo_paths.py"),
+                      os.path.join(paths.CODE_DIR, "repo_paths.py"))
+        src_path = next((c for c in candidates if os.path.isfile(c)), None)
+        self.assertIsNotNone(
+            src_path,
+            f"repo_paths.py — the Python parser of paths.env — is at none of "
+            f"{candidates}. capture.sh and sreto.paths have no shared "
+            f"definition of CAPTURES_DIR without it.")
+        spec = importlib.util.spec_from_file_location("_science_repo_paths",
+                                                      src_path)
+        repo_paths = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(repo_paths)
+
+        self.assertEqual(
+            str(repo_paths.CAPTURES_DIR).rstrip("/"), paths.CAPTURES_DIR.rstrip("/"),
+            "repo_paths.CAPTURES_DIR (parsed from 01_CODE/paths.env, what "
+            "capture.sh actually writes to) and sreto.paths.CAPTURES_DIR "
+            "(hand-derived) disagree — the GUI would reveal the wrong folder "
+            "and analysis_panel would search the wrong directory for captures.")
+        self.assertEqual(
+            str(repo_paths.DATA_DIR).rstrip("/"), paths.DATA_DIR.rstrip("/"))
+        self.assertEqual(
+            str(repo_paths.ANALYSIS_DIR).rstrip("/"), paths.ANALYSIS_DIR.rstrip("/"))
 
 
 class TestSoopCaptureFlagContract(unittest.TestCase):

@@ -34,10 +34,22 @@ import sys
 
 # Marker files that identify a directory as the science repository. Deliberately
 # few and load-bearing: every one of them is something SReTo actually drives.
-REPO_MARKERS = (
-    os.path.join("01_CODE", "capture.sh"),
+#
+# MAIN.py is required in both supported layouts. capture.sh MOVED when the
+# science repo pulled its tooling into 01_CODE/gui/, so it is accepted at
+# either location. Probing only the old path silently declared every current
+# clone "not a science repository" — a spectacularly unhelpful way to fail:
+# the app opens, finds nothing, and blames the user's configuration.
+REPO_REQUIRED = (
     os.path.join("01_CODE", "MAIN.py"),
 )
+REPO_ALTERNATIVES = (
+    (os.path.join("01_CODE", "gui", "scripts", "capture.sh"),   # package layout
+     os.path.join("01_CODE", "capture.sh")),                    # legacy flat
+)
+
+# Flattened, so error messages can name what was looked for.
+REPO_MARKERS = REPO_REQUIRED + tuple(alts[0] for alts in REPO_ALTERNATIVES)
 
 # The subdirectory of the science repo holding the CLI tools.
 CODE_SUBDIR = "01_CODE"
@@ -90,10 +102,13 @@ def config_path():
 
 # ── finding the science repo ──────────────────────────────────────────────
 def looks_like_science_repo(path):
-    """True when `path` contains the CLI tools SReTo drives."""
+    """True when `path` holds the CLI tools SReTo drives, in EITHER layout."""
     if not path or not os.path.isdir(path):
         return False
-    return all(os.path.isfile(os.path.join(path, m)) for m in REPO_MARKERS)
+    if not all(os.path.isfile(os.path.join(path, m)) for m in REPO_REQUIRED):
+        return False
+    return all(any(os.path.isfile(os.path.join(path, c)) for c in alternatives)
+               for alternatives in REPO_ALTERNATIVES)
 
 
 def _from_env():

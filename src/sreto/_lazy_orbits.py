@@ -35,9 +35,24 @@ def _load():
             # Without this, the import below fails with a bare ImportError that
             # says 'orbits' and nothing about the actual cause.
             raise ImportError(config.missing_repo_message())
-        if paths.CODE_DIR not in sys.path:
-            sys.path.insert(0, paths.CODE_DIR)
-        import orbits  # noqa: PLC0415 — deferred on purpose
+        # Loaded BY LOCATION, not by name. orbits.py moved into the science
+        # repo's application package (01_CODE/gui/analysis/), so a sys.path
+        # insert plus `import orbits` silently found nothing — every azimuth
+        # went unresolved and the sky-view filter reported ZERO visible passes
+        # instead of an error. paths.ANALYSIS_SRC_DIR knows both layouts.
+        #
+        # By location also means a module named `orbits` that happens to be
+        # importable on this machine can never be picked up in its place.
+        import importlib.util  # noqa: PLC0415
+        src = os.path.join(paths.ANALYSIS_SRC_DIR, "orbits.py")
+        if not os.path.isfile(src):
+            raise ImportError(
+                f"the science repo has no orbits.py at {src} — SReTo cannot "
+                f"compute azimuth without it.")
+        spec = importlib.util.spec_from_file_location("_science_orbits", src)
+        orbits = importlib.util.module_from_spec(spec)
+        sys.modules.setdefault("_science_orbits", orbits)
+        spec.loader.exec_module(orbits)
         _orbits = orbits
         return _orbits
 

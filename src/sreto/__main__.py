@@ -3,7 +3,8 @@ Entry point:  sreto   /   python -m sreto
 
 The GUI needs no arguments. The flags exist because two things have to be
 answerable *without* opening a window: where the science repository is, and
-whether this installation is intact.
+whether this installation is intact. A third reason, added later: a field
+session over SSH has no window to open at all.
 
     sreto                          open the window
     sreto --check                  run the validation suite, no window, no radio
@@ -11,6 +12,14 @@ whether this installation is intact.
     sreto --radios                 which SDRs are supported, and what is coming
     sreto --set-repo PATH          persist the science repository location
     sreto --version
+
+    sreto --menu                   interactive terminal menu — capture,
+                                    analysis, planner, pre-checks, status, over
+                                    SSH with no display
+    sreto --selftests              every self-check, exit code says pass/fail
+    sreto --status                 paths, storage, plan age, recent runs
+    sreto --logs                   list recent run / session / planner logs
+    sreto --captures               list the captures this install can see
 """
 
 import argparse
@@ -42,6 +51,17 @@ def _parser():
     p.add_argument("--set-repo", metavar="PATH",
                    help="persist the science repository location and exit")
     p.add_argument("--version", action="store_true", help="print the version")
+    p.add_argument("--menu", "--tui", action="store_true", dest="menu",
+                   help="interactive terminal menu — capture, analysis, "
+                        "planner, pre-checks, status, over SSH")
+    p.add_argument("--selftests", action="store_true",
+                   help="run every self-check and exit non-zero if any failed")
+    p.add_argument("--status", action="store_true",
+                   help="paths, storage, plan age and recent runs, then exit")
+    p.add_argument("--logs", action="store_true",
+                   help="list the most recent run / session / planner logs")
+    p.add_argument("--captures", action="store_true",
+                   help="list the captures this install can see, then exit")
     return p
 
 
@@ -137,6 +157,24 @@ def main(argv=None):
 
     if args.check:
         return _self_check()
+
+    # The terminal front-end. No Tk import here, unlike the window path below —
+    # that is the whole point: these run over SSH with no display.
+    if args.menu:
+        from . import tui
+        return tui.run_menu()
+    if args.selftests:
+        from . import tui
+        return tui.run_tests()
+    if args.status:
+        from . import tui
+        return tui.run_status()
+    if args.logs:
+        from . import tui
+        return tui.run_logs()
+    if args.captures:
+        from . import tui
+        return tui.run_captures()
 
     from . import config
     if not config.is_configured():

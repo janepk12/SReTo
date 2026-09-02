@@ -42,7 +42,7 @@ def _module_constants(filename):
     Handles the tuple form both modules use:
         BG, PANEL, BORDER, TEXT, MUTED = "#f8f9fa", "#ffffff", …
     """
-    path = os.path.join(paths.CODE_DIR, filename)
+    path = os.path.join(paths.ANALYSIS_SRC_DIR, filename)
     with open(path, encoding="utf-8") as f:
         tree = ast.parse(f.read(), filename=path)
 
@@ -120,7 +120,7 @@ class TestPaletteParity(unittest.TestCase):
         self.assertNotEqual(theme.AMBER, theme.C2)
 
     def test_console_ansi_covers_every_code_console_py_emits(self):
-        console_src = os.path.join(paths.CODE_DIR, "console.py")
+        console_src = os.path.join(paths.ANALYSIS_SRC_DIR, "console.py")
         with open(console_src, encoding="utf-8") as f:
             src = f.read()
         emitted = set(re.findall(r'"(\w+)":\s*"\\033\[\d+m"', src))

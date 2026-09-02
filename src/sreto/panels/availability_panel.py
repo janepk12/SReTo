@@ -177,9 +177,13 @@ class AvailabilityPanel(ttk.Frame):
         right = ttk.Frame(body)
         right.pack(side="left", fill="both", expand=True)
 
+        # Collapsible and closed for the same reason as the Automation tab's
+        # copy: these values are inherited, and this panel's own work (the
+        # availability table) is what the space belongs to.
         self.radio_card = widgets.Card(
             right, "Capture settings in force",
-            "what a capture started here will record with")
+            "what a capture started here will record with",
+            collapsible=True, expanded=False)
         self.radio_card.pack(fill="x", pady=(0, 8))
         # Two columns, not three: each row is label + value + origin, and the
         # origin strings ('soop_capture.sh:76') are long enough that a third
@@ -577,7 +581,19 @@ class AvailabilityPanel(ttk.Frame):
         Capture tab whenever its radio fields change."""
         rows = radio_settings.effective()
         self.radio_table.set_rows(rows)
+        # Same reasoning as the Automation tab: the card is collapsed by
+        # default, so the values move into the header where they stay visible.
+        # A gain conflict is a WARNING and must survive collapsing too, so it
+        # takes the subtitle over the plain summary when present.
         conflict = radio_settings.gain_conflict()
+        if conflict:
+            self.radio_card.set_subtitle(
+                f"⚠ split gain rx1 {conflict[0]} / rx2 {conflict[1]} dB "
+                f"cannot be forwarded")
+        else:
+            self.radio_card.set_subtitle(
+                radio_settings.summary_line()
+                or "what a capture started here will record with")
         if conflict:
             self.radio_note.configure(
                 text=f"the Capture tab's split gain (rx1 {conflict[0]} dB / rx2 "

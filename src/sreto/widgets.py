@@ -240,21 +240,108 @@ class StatusChip(ttk.Frame):
 
 
 class Card(ttk.Frame):
-    """A titled white panel — the basic layout unit."""
+    """A titled white panel — the basic layout unit.
 
-    def __init__(self, master, title, subtitle="", **kw):
+    `collapsible=True` puts a disclosure chevron on the title and makes the
+    whole header row a click target. Use it for cards that are REFERENCE
+    material — a table restating settings that came from somewhere else, a
+    long explanation — rather than for the controls a panel exists to offer.
+    A collapsed card still tells you it is there and how to open it; hiding
+    the fact would just be a shorter way of losing it.
+
+    `expanded=False` starts it closed, which is the right default for a card
+    that merely restates values the user already set elsewhere.
+    """
+
+    CHEVRON_OPEN = "▾"
+    CHEVRON_SHUT = "▸"
+
+    def __init__(self, master, title, subtitle="", collapsible=False,
+                 expanded=True, on_toggle=None, **kw):
         super().__init__(master, style="Panel.TFrame", padding=(14, 10, 14, 12), **kw)
         head = ttk.Frame(self, style="Panel.TFrame")
         head.pack(fill="x", pady=(0, 8))
-        ttk.Label(head, text=title.upper(), style="Panel.TLabel",
-                  font=theme.F.small_bold,
-                  foreground=theme.MUTED).pack(side="left")
         self.head = head
+        self._collapsible = bool(collapsible)
+        self._expanded = bool(expanded) or not self._collapsible
+        self._on_toggle = on_toggle
+        self._title_text = title.upper()
+
+        self._chevron = None
+        if self._collapsible:
+            self._chevron = ttk.Label(
+                head, style="Panel.TLabel", font=theme.F.small_bold,
+                foreground=theme.MUTED, width=2,
+                text=self.CHEVRON_OPEN if self._expanded else self.CHEVRON_SHUT)
+            self._chevron.pack(side="left")
+
+        self._title = ttk.Label(head, text=self._title_text, style="Panel.TLabel",
+                                font=theme.F.small_bold,
+                                foreground=theme.MUTED)
+        self._title.pack(side="left")
+
+        self._subtitle = None
         if subtitle:
-            ttk.Label(head, text=subtitle, style="PanelMuted.TLabel").pack(
-                side="left", padx=(10, 0))
+            self._subtitle = ttk.Label(head, text=subtitle,
+                                       style="PanelMuted.TLabel")
+            self._subtitle.pack(side="left", padx=(10, 0))
+
         self.body = ttk.Frame(self, style="Panel.TFrame")
-        self.body.pack(fill="both", expand=True)
+        if self._expanded:
+            self.body.pack(fill="both", expand=True)
+
+        if self._collapsible:
+            # The whole header is the hit target, not just the chevron — a
+            # 12 px glyph is a poor click target and the title is the thing
+            # the eye is already on. `add="+"` throughout so a caller that
+            # binds its own handler to the head keeps it.
+            for w in (head, self._chevron, self._title, self._subtitle):
+                if w is not None:
+                    w.bind("<Button-1>", self._on_click, add="+")
+                    try:
+                        w.configure(cursor="hand2")
+                    except tk.TclError:                     # pragma: no cover
+                        pass
+
+    # ── collapsing ────────────────────────────────────────────────────────
+    def _on_click(self, _event=None):
+        self.toggle()
+        return "break"
+
+    def toggle(self):
+        self.set_expanded(not self._expanded)
+
+    def expanded(self):
+        return self._expanded
+
+    def set_expanded(self, value):
+        """Show or hide the body. No-op on a card that is not collapsible."""
+        value = bool(value)
+        if not self._collapsible or value == self._expanded:
+            return
+        self._expanded = value
+        if value:
+            self.body.pack(fill="both", expand=True)
+        else:
+            self.body.pack_forget()
+        if self._chevron is not None:
+            self._chevron.configure(
+                text=self.CHEVRON_OPEN if value else self.CHEVRON_SHUT)
+        if callable(self._on_toggle):
+            self._on_toggle(value)
+
+    def set_subtitle(self, text):
+        """Retitle the subtitle line — a collapsed card's only status surface.
+
+        A card the user has closed still needs to be able to say that what is
+        inside it changed, otherwise collapsing it means not being told.
+        """
+        if self._subtitle is None:
+            self._subtitle = ttk.Label(self.head, style="PanelMuted.TLabel")
+            self._subtitle.pack(side="left", padx=(10, 0))
+            if self._collapsible:
+                self._subtitle.bind("<Button-1>", self._on_click, add="+")
+        self._subtitle.configure(text=text)
 
 
 class SettingsTable(ttk.Frame):

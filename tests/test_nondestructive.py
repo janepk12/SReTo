@@ -52,12 +52,18 @@ def setUpModule():
 EXCLUDED_NAMES = {".DS_Store", ".tle_cache.json"}
 EXCLUDED_DIRS = {"__pycache__", ".git"}
 
-REQUIRED_FILES = [
-    "capture.sh", "soop_capture.sh", "soop_planner.py", "MAIN.py",
-    "console.py", "waterfalls.py", "iq_dashboard.py", "physics.py",
-    "orbits.py", "fresnel.py", "satellites.py", "sdr_core.py",
-    "band_correlator.py", "geometry.json",
-]
+# Named by ROLE, not by path: the science repo supports two layouts and each
+# of these sits in a different place depending on which one is in front of us.
+# paths.* already resolved that, so ask it rather than re-deriving it here.
+def required_files():
+    """Absolute paths of every science-repo file SReTo drives, this layout."""
+    scripts = (paths.CAPTURE_SH, paths.SOOP_CAPTURE_SH)
+    pipeline = ("soop_planner.py", "console.py", "waterfalls.py",
+                "iq_dashboard.py", "physics.py", "orbits.py", "fresnel.py",
+                "satellites.py", "sdr_core.py", "band_correlator.py")
+    return (list(scripts)
+            + [paths.MAIN_PY, paths.GEOMETRY_JSON]
+            + [os.path.join(paths.ANALYSIS_SRC_DIR, f) for f in pipeline])
 
 
 def hash_code_dir():
@@ -136,10 +142,12 @@ class TestCodeDirUntouched(unittest.TestCase):
         self.assertEqual(added, [], f"GUI CREATED files in 01_CODE: {added}")
 
     def test_required_files_present(self):
-        missing = [f for f in REQUIRED_FILES
-                   if not os.path.isfile(os.path.join(paths.CODE_DIR, f))]
-        self.assertEqual(missing, [],
-                         f"01_CODE is missing files the GUI drives: {missing}")
+        missing = sorted(os.path.relpath(f, paths.REPO_ROOT)
+                         for f in required_files() if not os.path.isfile(f))
+        self.assertEqual(
+            missing, [],
+            f"the science repo ({paths.SCIENCE_LAYOUT} layout) is missing "
+            f"files SReTo drives: {missing}")
 
     def test_sreto_lives_outside_the_science_repo(self):
         """The package must not sit inside the tree it promises not to touch.

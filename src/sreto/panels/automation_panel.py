@@ -102,8 +102,16 @@ class AutomationPanel(ttk.Frame):
               help_text="Begin the capture this many seconds before the pass.")
 
         # ── radio settings actually in force ──
+        # COLLAPSED BY DEFAULT, and collapsible at all, because every value in
+        # it is INHERITED from the Capture tab — it restates a decision made
+        # elsewhere. That makes it reference material: worth being able to
+        # check, not worth a screenful of the panel every time. The subtitle
+        # keeps a one-line summary visible while it is shut, so closing it
+        # costs the detail and not the fact.
         radio = widgets.Card(root, "Radio settings in force",
-                             "what every capture in this session will use")
+                             "what every capture in this session will use",
+                             collapsible=True, expanded=False)
+        self.radio_card = radio
         radio.pack(fill="x", pady=(0, 10))
 
         inherit_row = ttk.Frame(radio.body, style="Panel.TFrame")
@@ -221,10 +229,18 @@ class AutomationPanel(ttk.Frame):
     # ── radio settings ────────────────────────────────────────────────────
     def refresh_radio_settings(self):
         """Re-render the 'in force' table. Called when either tab changes."""
-        rows = radio_settings.effective(
-            use_shared=self.inherit.get(),
-            overrides=self._explicit_radio_overrides())
+        use_shared = self.inherit.get()
+        overrides = self._explicit_radio_overrides()
+        rows = radio_settings.effective(use_shared=use_shared,
+                                        overrides=overrides)
         self.radio_table.set_rows(rows)
+        # The card defaults to COLLAPSED, so the header carries the values
+        # themselves rather than a description of them. Without this, closing
+        # the card would hide the one thing it exists to report.
+        summary = radio_settings.summary_line(use_shared=use_shared,
+                                              overrides=overrides)
+        self.radio_card.set_subtitle(
+            summary or "what every capture in this session will use")
 
     def _explicit_radio_overrides(self):
         """Only what this tab's own fields say — blank means 'inherit'."""

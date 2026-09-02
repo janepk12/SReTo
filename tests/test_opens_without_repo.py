@@ -83,7 +83,7 @@ class TestTheWindowBuilds(unittest.TestCase):
     def test_every_tab_is_present(self):
         tabs = [self.app.notebook.tab(t, "text")
                 for t in self.app.notebook.tabs()]
-        self.assertEqual(tabs, ["Capture", "Automation", "Analysis",
+        self.assertEqual(tabs, ["Capture", "Automation", "Analysis", "Physics",
                                 "SoOp availability", "History", "Pre-checks"])
 
     def test_construction_did_not_block_on_a_dialog(self):

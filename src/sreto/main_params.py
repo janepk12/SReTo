@@ -113,9 +113,13 @@ PARAM_SPECS = [
     ("POLARIZATION", "choice", "Polarization", "physics", "H or V.",),
 
     ("SAVE_PLOTS", "bool", "Save plots", "output", ""),
-    ("SAVE_DIR", "path", "Output directory", "output",
-     "MAIN.py writes FIXED filenames here and names any leftovers from earlier "
-     "runs at the end."),
+    # SAVE_DIR is deliberately absent. It is no longer a user-editable literal
+    # in MAIN.py: figures go to 03_FIGURES/10_ANALYSIS/<capture stem>/, derived
+    # from file_name so two captures cannot overwrite each other's output.
+    # Exposing it as a free-text path would let a user re-create exactly the
+    # collision the per-capture directory was introduced to prevent. See
+    # jobs.analysis_job(), which derives the run's actual output directory
+    # from file_name via paths.analysis_dir() instead of reading this.
 ]
 
 CHOICES = {"POLARIZATION": ["V", "H"]}

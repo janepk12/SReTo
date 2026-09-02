@@ -36,6 +36,7 @@ capture, identical to pressing Enter through the CLI.
 """
 
 import os
+import sys
 from dataclasses import dataclass, field
 
 from . import main_params, paths
@@ -144,6 +145,37 @@ def estimate_capture(values):
     return size, duration, human_bytes(size)
 
 
+def capture_rate_bytes_per_sec(values):
+    """Sustained bytes/second the capture must be written to disk at.
+
+    This is the number that decides whether a capture SUCCEEDS or lands as a
+    SHORT file, and until now nothing in the app said it out loud. bladeRF
+    streaming is real-time: the samples arrive whether or not the storage
+    underneath can absorb them, and when it cannot, the radio drops them and
+    capture.sh reports a size mismatch after the pass is over and gone.
+
+        rate = samplerate x channels x bytes_per_sample
+
+    Worth knowing before pressing Start on a machine that is not the
+    workstation. 10 MS/s dual-channel 16-bit is 80 MB/s, which a laptop SSD
+    swallows and a Raspberry Pi microSD card (~40-90 MB/s, and that is the
+    burst figure, not the sustained one) does not. Same command, same radio,
+    different outcome.
+
+    Returns bytes/sec, or None when the form does not describe a capture yet.
+    """
+    try:
+        samplerate = float(str(values.get("samplerate", "") or "2").strip())
+    except ValueError:
+        return None
+    if samplerate <= 0:
+        return None
+    channels = str(values.get("channels", "") or "1,2").strip()
+    num_channels = 2 if channels.replace(" ", "") in ("1,2", "2,1") else 1
+    bytes_per_sample = 2 if str(values.get("bitmode", "") or "").strip() == "8bit" else 4
+    return samplerate * 1e6 * num_channels * bytes_per_sample
+
+
 def human_bytes(n):
     """capture.sh's format_bytes(), in Python (capture.sh:79)."""
     size = float(n)
@@ -165,7 +197,12 @@ def capture_job(values):
         argv=["bash", paths.CAPTURE_SH],
         cwd=paths.CODE_DIR,
         stdin_lines=capture_answers(values),
-        output_dir=paths.DATA_DIR,
+        # capture.sh writes into CAPTURES_DIR/<stem>/ (one directory per
+        # capture, generated at runtime from the timestamp) — the GUI cannot
+        # know the exact stem ahead of time, so it reveals the parent that
+        # actually receives new captures now, not the flat 02_DATA root that
+        # holds only registry/soop_auto/captures subdirectories today.
+        output_dir=paths.CAPTURES_DIR,
         summary=f"manual capture — {freq} MHz, {amount} {unit}",
         meta={"frequency_mhz": freq, "experiment": values.get("experiment_info", "")},
     )
@@ -233,7 +270,14 @@ def autocapture_job(values):
 
 # ── soop_planner.py ────────────────────────────────────────────────────────
 def planner_job(values):
-    argv = [paths.python_executable(), paths.SOOP_PLANNER_PY]
+    # In the current science-repo layout the planner is a package module with
+    # relative imports and MUST be launched with -m from 01_CODE; in the legacy
+    # flat layout it is a standalone file launched by path. paths decides which
+    # by looking at the repo, so this stays correct for either clone.
+    if paths.SOOP_PLANNER_MODULE:
+        argv = [paths.python_executable(), "-m", paths.SOOP_PLANNER_MODULE]
+    else:
+        argv = [paths.python_executable(), paths.SOOP_PLANNER_PY]
     if values.get("selftest"):
         argv.append("--selftest")
     else:
@@ -264,7 +308,14 @@ def analysis_job(overrides, nice=10):
     cwd — without this, MAIN.py's `import console` would fail.
     """
     run_copy = main_params.write_run_copy(overrides)
-    save_dir = overrides.get("SAVE_DIR") or paths.ANALYSIS_DIR
+    # SAVE_DIR is no longer a free-text override (see main_params.PARAM_SPECS'
+    # comment) — MAIN.py computes it itself as ANALYSIS_DIR/<capture stem>/,
+    # keyed by file_name, so two captures cannot collide. Reveal/open must
+    # follow the SAME per-capture directory MAIN.py actually wrote to, not
+    # the flat ANALYSIS_DIR root (which now holds one subfolder per capture
+    # ever analysed, not this run's figures).
+    file_name = overrides.get("file_name") or ""
+    save_dir = paths.analysis_dir(file_name) if file_name else paths.ANALYSIS_DIR
     return Job(
         name="MAIN.py",
         kind="analysis",
@@ -279,6 +330,54 @@ def analysis_job(overrides, nice=10):
               "run_copy": run_copy,
               "process_percentage": overrides.get("PROCESS_PERCENTAGE"),
               "satellite": overrides.get("SATELLITE_QUERY")},
+    )
+
+
+# ── physics (the retrieval on its own) ─────────────────────────────────────
+def physics_job(values, nice=10):
+    """Run the retrieval on one capture — soil moisture, without the rest.
+
+    Unlike analysis_job, this runs the VENDORED sreto.analysis.physics rather
+    than a file in the science repo's 01_CODE. That is the whole point of
+    vendoring it: the physics menu works on a bare `pip install sreto[analysis]`
+    with no sdr_r clone present, needing only the capture .bin/.json pair.
+
+    `-m` rather than a path because the module lives inside an installed
+    package, wherever pip put it; `sys.executable` is used directly for the
+    same reason — the package must be importable by the interpreter that runs
+    it, which is this one, not whichever python the science repo prefers.
+
+    Blank fields are omitted rather than sent as empty flags, so an untouched
+    form runs physics.py's own PhysicsConfig defaults.
+    """
+    json_path = str(values.get("json_path") or "")
+    save_dir = str(values.get("save_dir") or paths.ANALYSIS_DIR)
+    argv = [sys.executable, "-m", "sreto.analysis.physics", json_path,
+            "--save-dir", save_dir]
+    for flag, key in (("--elevation", "elevation"),
+                      ("--pol", "polarization"),
+                      ("--block-sec", "block_sec"),
+                      ("--bw-khz", "bw_khz"),
+                      ("--offset-mhz", "offset_mhz"),
+                      ("--soil-model", "soil_model"),
+                      ("--reference", "reference_json"),
+                      ("--ground-truth", "ground_truth")):
+        text = str(values.get(key, "") or "").strip()
+        if text:
+            argv.extend([flag, text])
+
+    return Job(
+        name="physics",
+        kind="physics",
+        argv=argv,
+        cwd=paths.CODE_DIR if os.path.isdir(paths.CODE_DIR) else os.getcwd(),
+        nice=int(nice or 0),
+        output_dir=save_dir,
+        artifact_dir=save_dir,
+        summary=f"physics retrieval — {os.path.basename(json_path) or '?'}",
+        meta={"file_name": os.path.basename(json_path),
+              "soil_model": values.get("soil_model", ""),
+              "ground_truth": values.get("ground_truth", "")},
     )
 
 

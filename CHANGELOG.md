@@ -29,6 +29,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Both science-repo layouts are supported.** The science repository moved its
+  tooling out of a flat `01_CODE/` and into an application package at
+  `01_CODE/gui/` (`scripts/`, `analysis/`, `config/`), leaving only `MAIN.py`
+  outside it. SReTo ships independently of that repo and is pinned to neither
+  version, so `config.looks_like_science_repo()` and every path in `paths.py`
+  now accept either location, per file rather than wholesale — a half-migrated
+  clone still resolves whatever it has. `paths.SCIENCE_LAYOUT` reports which
+  one was found, and `paths.ANALYSIS_SRC_DIR` / `CONFIG_SRC_DIR` /
+  `SCRIPTS_SRC_DIR` give the parity checks one name to ask instead of repeating
+  the conditional.
+
+### Fixed
+
+- **The sky-view filter silently reported zero visible passes** against a
+  current science repo. `_lazy_orbits` located `orbits.py` by inserting
+  `01_CODE` on `sys.path` and doing `import orbits`; once that file moved into
+  the application package the import found nothing, every azimuth went
+  unresolved, and the mask reported "no passes" instead of an error — the worst
+  possible failure for a planning tool, because an empty sky looks like a quiet
+  night. It is now loaded **by location** from `paths.ANALYSIS_SRC_DIR`, which
+  also removes the chance of picking up an unrelated `orbits` module that
+  happens to be importable on the host.
+- `test_capture_contract` loaded the science repo's `repo_paths.py` by name for
+  the same reason and had the same failure mode; it now loads it by location.
+- The capture-directory contract test pinned the literal string
+  `. "${SDRR_ROOT}/01_CODE/paths.env"`. Where `paths.env` lives is
+  layout-dependent; the contract is that `capture.sh` *sources* it, so that is
+  what is asserted now.
+
 - **`sreto.radios`** — the SDR support catalogue as data: which radios are
   driven today, which are coming, the host tool and command line each one
   needs, and how many coherent RX chains it has. Kept as a module rather than
